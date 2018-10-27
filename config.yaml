@@ -1,0 +1,7 @@
+d_obs:  10
+d_ret:  1
+d_act:  2
+d_gol:  4
+actor:
+  num_layers: 2
+  num_hidden: 300
