@@ -3,7 +3,7 @@ from collections import OrderedDict
 
 import tensorflow as tf
 from tensorflow.contrib.staging import StagingArea
-from tf.GraphKeys import TRAINABLE_VARIABLES as TVARS
+from tensorflow.GraphKeys import TRAINABLE_VARIABLES as TVARS
 from tensorflow import float32 as f32
 
 from models import Actor, Critic
