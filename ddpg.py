@@ -3,10 +3,11 @@ from collections import OrderedDict
 
 import tensorflow as tf
 from tensorflow.contrib.staging import StagingArea
-from tensorflow.GraphKeys import TRAINABLE_VARIABLES as TVARS
+from tensorflow import GraphKeys
 from tensorflow import float32 as f32
-
 from models import Actor, Critic
+
+TVARS = GraphKeys.TRAINABLE_VARIABLES
 
 
 class DDPG:
@@ -60,11 +61,11 @@ class DDPG:
                              tf.get_collection(TVARS,  scope="ACTOR"))
         critic_wt_pairs = zip(tf.get_collection(TVARS, scope="T_CRITIC"),
                               tf.get_collection(TVARS,  scope="CRITIC"))
-        self.act_update_op = [i.assign(tf.mul(i, self.params["tau"]) +
-                              tf.mul(j, 1 - self.params["tau"]))
+        self.act_update_op = [i.assign(tf.multiply(i, self.params["tau"]) +
+                              tf.multiply(j, 1 - self.params["tau"]))
                               for i, j in actor_wt_pairs]
-        self.cri_update_op = [i.assign(tf.mul(i, self.params["tau"]) +
-                              tf.mul(j, 1 - self.params["tau"]))
+        self.cri_update_op = [i.assign(tf.multiply(i, self.params["tau"]) +
+                              tf.multiply(j, 1 - self.params["tau"]))
                               for i, j in critic_wt_pairs]
 
 
