@@ -3,6 +3,7 @@ from collections import OrderedDict
 
 import tensorflow as tf
 from tensorflow.contrib.staging import StagingArea
+from tf.GraphKeys import TRAINABLE_VARIABLES as TVARS
 from tensorflow import float32 as f32
 
 from models import Actor, Critic
@@ -21,14 +22,17 @@ class DDPG:
         self.critic = Critic(self.inputs, self.actor,
                              **params["critic"], name="CRITIC")
         # create their corresponding target models
-        self.t_actor = Actor(self.inputs, **params["actor"], name="T_ACTOR")
-        self.t_critic = Critic(self.inputs, self.t_actor,
-                               **params["critic"], name="T_CRITIC")
+        self.t_actor = Actor(self.inputs, **params["actor"], target=True,
+                             name="T_ACTOR")
+        self.t_critic = Critic(self.inputs, self.t_actor, **params["critic"],
+                               target=True, name="T_CRITIC")
+        # self.create_losses()
         # Training rules
         # for Critic
         # for Actor
         # self.setup_trainers()
         # create target update rules
+        self.create_target_update_op()
 
     def create_shape_dict(self):
         self.shape_dict = OrderedDict()
@@ -44,6 +48,24 @@ class DDPG:
         self.inputs = self.staging_area.get()
         self.inputs = {k: self.inputs[i] for i, k
                        in enumerate(self.shape_dict.keys())}
+
+    def create_losses(self):
+        c_pred = self.inputs["r"] + \
+                        self.params["gamma"]*self.t_critic(self.inputs)
+        self.critic_loss = tf.reduce_mean(tf.square(tf.stop_gradient(c_pred)
+                                          - self.critic(self.inputs)))
+
+    def create_target_update_op(self):
+        actor_wt_pairs = zip(tf.get_collection(TVARS, scope="T_ACTOR"),
+                             tf.get_collection(TVARS,  scope="ACTOR"))
+        critic_wt_pairs = zip(tf.get_collection(TVARS, scope="T_CRITIC"),
+                              tf.get_collection(TVARS,  scope="CRITIC"))
+        self.act_update_op = [i.assign(tf.mul(i, self.params["tau"]) +
+                              tf.mul(j, 1 - self.params["tau"]))
+                              for i, j in actor_wt_pairs]
+        self.cri_update_op = [i.assign(tf.mul(i, self.params["tau"]) +
+                              tf.mul(j, 1 - self.params["tau"]))
+                              for i, j in critic_wt_pairs]
 
 
 def load_config(filename):
@@ -71,4 +93,10 @@ a, c = ddpg.actor, ddpg.critic
 writer = tf.summary.FileWriter("__tensorboard/", tf.get_default_graph())
 # print (op)
 writer.close()
-print(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))
+print(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="T_ACTOR"))
+print(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="ACTOR"))
+tav = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="T_ACTOR")
+print([i.name for i in tav])
+with tf.variable_scope("ACTOR", reuse=True):
+    print(tf.get_variable("layer_0/kernel"))
+print(tf.trainable_variables())
