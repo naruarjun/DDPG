@@ -1,7 +1,17 @@
-d_obs:  10
-d_ret:  1
-d_act:  2
-d_gol:  4
+dimensions:
+  x:      4
+  r:      1
+  u:      2
 actor:
-  num_layers: 2
-  num_hidden: 300
+  n_layers: 3
+  n_units : 200
+  tau:      0.01
+  lr:       0.0001
+critic:
+  n_layers: 3
+  n_units : 200
+  tau:      0.01
+  lr:       0.001
+gamma:    0.98
+b_size:   200
+random_eps: 0.9

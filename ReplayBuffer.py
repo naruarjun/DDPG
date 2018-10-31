@@ -1,20 +1,50 @@
-import numpy as np
 from collections import deque
+import random
+import numpy as np
 
-class ReplayBuffer(deque):
 
-  def __init__(self, storing_order: dict, maxlen=None):
-    self.storing_order = 
-    super(ReplayBuffer, self).__init__(maxlen=maxlen)
+class ReplayBuffer(object):
 
-  def store_episode(self, episode):
-    assert len(set([len(episode[k].shape) == 2 for k in episode.keys])) == 1,\
-           "Only 2 dim arrays can pass through here !!"
-    assert set([episode[k].shape[0] for k in episode.keys])[0] == True, \
-           "All data holders must be of the same timestep length !!"
-    for i in range(episode[0].shape[0]):
-      self.append(tuple(episode[k][i] for k in self.storing_order))
-    print ("Stored Episode...\nCurrent length of replay buffer is {}".format(len(self)))
+    def __init__(self, buffer_size):
+        self.buffer_size = buffer_size
+        self.count = 0
+        self.buffer = deque()
 
-  def sample(self, batch_size):
-    return np.random.choice(self, size=batch_size, replace=True)
+    def add(self, s, a, r, t, s2):
+        experience = (s, a, r, t, s2)
+        if self.count < self.buffer_size:
+            self.buffer.append(experience)
+            self.count += 1
+        else:
+            self.buffer.popleft()
+            self.buffer.append(experience)
+
+    def size(self):
+        return self.count
+
+    def sample_batch(self, batch_size):
+        '''
+        batch_size specifies the number of experiences to add
+        to the batch. If the replay buffer has less than batch_size
+        elements, simply return all of the elements within the buffer.
+        Generally, you'll want to wait until the buffer has at least
+        batch_size elements before beginning to sample from it.
+        '''
+        batch = []
+
+        if self.count < batch_size:
+            batch = random.sample(self.buffer, self.count)
+        else:
+            batch = random.sample(self.buffer, batch_size)
+
+        s_batch = np.array([_[0] for _ in batch])
+        a_batch = np.array([_[1] for _ in batch])
+        r_batch = np.array([_[2] for _ in batch])
+        t_batch = np.array([_[3] for _ in batch])
+        s2_batch = np.array([_[4] for _ in batch])
+
+        return s_batch, a_batch, r_batch, t_batch, s2_batch
+
+    def clear(self):
+        self.buffer.clear()
+        self.count = 0
