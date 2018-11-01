@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.summary import FileWriter
 
-from ddpg2 import DDPG
+from ddpg import DDPG
 from reward import Reward
 
 
