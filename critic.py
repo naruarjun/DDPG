@@ -30,7 +30,7 @@ class Critic:
     def define_operations(self):
         with tf.name_scope("critic_ops"):
             # LOSS
-            loss = rmean(sq(self.p - self.q.nn))
+            loss = tf.sqrt(rmean(sq(self.p - self.q.nn)))
             # MINIMIZE LOSS OP
             self.minimize = Adam(self.lr, name="q_adam")\
                 .minimize(loss, var_list=self.q.net_params)
@@ -38,8 +38,9 @@ class Critic:
             self.action_grads = tf.gradients(self.q.nn, self.u, name="dq_du")
             # UPDATE TARGET OP
             net_param_pairs = zip(self.q.net_params, self.Q.net_params)
-            self.update_Q = [j.assign(mul(self.tau, i)+mul((1-self.tau), j))
-                             for i, j in net_param_pairs]
+            with tf.name_scope("update_target_q"):
+                self.updt_Q = [j.assign(mul(self.tau, i)+mul((1-self.tau), j))
+                               for i, j in net_param_pairs]
 
     def predict(self, x, u):
         return self.session.run(self.q.nn,
@@ -51,12 +52,12 @@ class Critic:
 
     def train(self, x, u, t):
         return self.session.run([self.q.nn, self.minimize],
-                                feed_dict={self.x: x, self.i: u,
+                                feed_dict={self.x: x, self.u: u,
                                            self.p: t})
 
     def get_action_grads(self, x, u):
         return self.session.run(self.action_grads,
-                                feed_dict={self.x: x, self.u: u})
+                                feed_dict={self.x: x, self.u: u})[0]
 
     def update_target(self):
-        self.session.run(self.update_target)
+        self.session.run(self.updt_Q)
