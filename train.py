@@ -32,7 +32,7 @@ def train(config):
         episode_batch = []
         for i in range(env._max_episode_steps):
             # print(obs)
-            action, u, q = ddpg_agent.step(obs, is_u_discrete, episode < 100)
+            action, u, q = ddpg_agent.step(obs, is_u_discrete)
             episodic_q += q
             new_obs, r, done, _ = env.step(action)
             # print("REWARD: ", r, type(r), type(episodic_r))

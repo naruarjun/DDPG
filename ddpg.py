@@ -41,7 +41,7 @@ class DDPG:
     def step(self, x, is_u_discrete, explore=True):
         x = x.reshape(-1, self.dimensions["x"])
         u = self.actor.predict(x)
-        if explore:
+        if explore and np.random.random() < self.random_eps:
             self.ou_level = self.noise.ornstein_uhlenbeck_level(self.ou_level)
             u = u + self.ou_level
         q = self.critic.predict(x, u)

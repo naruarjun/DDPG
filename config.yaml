@@ -21,7 +21,7 @@ n_mem_objects:  5
 memory_size:    100000
 gamma:          0.99
 b_size:         100
-random_eps:     0.9
+random_eps:     0.3
 env_name:       CartPole-v1
-n_episodes:     400
+n_episodes:     400000
 render:         False
