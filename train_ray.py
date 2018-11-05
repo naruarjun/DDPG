@@ -120,3 +120,7 @@ if __name__ == "__main__":
     parser = create_parser()
     args = parser.parse_args()
     run(args, parser)
+    # command to run:
+    #python train_ray.py --env=Go2Goal-v0 \
+    # --run=DDPG --config '{"num_workers": 3, "gpu": "True", "horizon": 120, "actor_hiddens": [150, 150], "critic_hiddens": [150, 150], "exploration_fraction": 0.4}' --ray-num-gpus 1
+
