@@ -1,0 +1,25 @@
+dimensions:
+  x: 5
+  r: 1 
+  u: 2
+actor_params:
+  n_layers: 2
+  n_units : 200
+  tau:      0.01
+  lr:       0.0001
+critic_params:
+  n_layers: 3
+  n_units : 200
+  tau:      0.01
+  lr:       0.001
+noise_params:
+  delta: 0.5,0.5
+  sigma: 0.2,0.4
+  ou_a:  0.6,0.6
+  ou_mu: 0.5,0.0
+n_mem_objects:  8
+memory_size:    100000
+gamma:          0.99
+b_size:         200
+random_eps:     0.3
+n_episodes:     400000

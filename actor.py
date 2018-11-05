@@ -3,6 +3,7 @@ import tensorflow as tf
 from tensorflow import multiply as mul
 
 from tensorflow.train import AdamOptimizer as Adam
+from tensorflow.initializers import truncated_normal as TN
 
 from FCNN import FCNN
 
@@ -18,7 +19,8 @@ class Actor:
     def generate_networks(self):
         # MAIN ACTOR NETWORK
         self.pi = FCNN(self.x, self.u.shape[-1], self.n_layers, self.n_units,
-                       tf.nn.relu, tf.nn.tanh, name="pi")
+                       tf.nn.relu, tf.nn.tanh, name="pi",
+                       w_init=TN(stddev=1e-1))
         # TARGET ACTOR NETWORK
         self.PI = FCNN(self.x, self.u.shape[-1], self.n_layers, self.n_units,
                        tf.nn.relu, tf.nn.tanh, name="t_pi")

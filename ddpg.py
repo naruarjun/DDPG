@@ -18,9 +18,10 @@ class DDPG:
         # create actor/critic models
         self.actor = Actor(self.sess, self.inputs, **self.actor_params)
         self.critic = Critic(self.sess, self.inputs, **self.critic_params)
-        self.sess.run(tf.global_variables_initializer())
+        self.noise_params = {k: np.array(list(map(float, v.split(","))))
+                             for k, v in self.noise_params.items()}
         self.noise = Noise(**self.noise_params)
-        self.ou_level = 0.
+        self.ou_level = np.zeros(self.dimensions["u"])
         self.memory = Memory(self.n_mem_objects,
                              self.memory_size)
 
@@ -41,7 +42,7 @@ class DDPG:
     def step(self, x, is_u_discrete, explore=True):
         x = x.reshape(-1, self.dimensions["x"])
         u = self.actor.predict(x)
-        if explore and np.random.random() < self.random_eps:
+        if explore:
             self.ou_level = self.noise.ornstein_uhlenbeck_level(self.ou_level)
             u = u + self.ou_level
         q = self.critic.predict(x, u)
@@ -54,18 +55,27 @@ class DDPG:
 
     def train(self):
         # check if the memory contains enough experiences
-        if self.memory.size < self.b_size:
+        if self.memory.size < 3*self.b_size:
             return
-        x, u, r, nx, t = self.get_batch()
+        x, g, ag, u, r, nx, ng, t = self.get_batch()
+        # for her transitions
+        her_idxs = np.where(np.random.random(self.b_size) < 0.80)[0]
+        # print("{} of {} selected for HER transitions".
+        # format(len(her_idxs), self.b_size))
+        g[her_idxs] = ag[her_idxs]
+        r[her_idxs] = 1
+        t[her_idxs] = 1
+        x = np.hstack([x, g])
+        nx = np.hstack([nx, ng])
         nu = self.actor.predict_target(nx)
         tq = r + self.gamma*self.critic.predict_target(nx, nu)*(1-t)
         self.critic.train(x, u, tq)
-        g = self.critic.get_action_grads(x, u)
-        self.actor.train(x, g)
+        grad = self.critic.get_action_grads(x, u)
+        # print("Grads:\n", g)
+        self.actor.train(x, grad)
         self.update_targets()
 
     def get_batch(self):
-        return self.memory.sample(3)
         return self.memory.sample(self.b_size)
 
     def update_targets(self):
