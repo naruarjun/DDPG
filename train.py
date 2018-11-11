@@ -5,8 +5,6 @@ import tensorflow as tf
 from tensorflow.summary import FileWriter
 
 from ddpg import DDPG
-# from reward import Reward
-# from environment import G2Goal
 import go2goal
 
 def load_config(filename):
