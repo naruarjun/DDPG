@@ -14,7 +14,7 @@ critic_params:
   lr:       0.001
 noise_params:
   delta: 0.5,0.5
-  sigma: 0.2,0.4
+  sigma: 0.5,0.8
   ou_a:  0.6,0.6
   ou_mu: 0.5,0.0
 n_mem_objects:  8
@@ -23,3 +23,4 @@ gamma:          0.99
 b_size:         200
 random_eps:     0.3
 n_episodes:     400000
+render:         True
