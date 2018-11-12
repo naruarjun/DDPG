@@ -41,11 +41,11 @@ class Go2Goal(gym.Env):
         self.her = True
         # self.seed = None
         self.thresh = np.array([0.05, 0.05, 0.1])[:-1]
-        self.num_iter = 50
+        self.num_iter = 25
         self.reward_max = 1
         self.max_episode_steps = 50
         self._max_episode_steps = 50
-        self.step_penalty = 1./(self.max_episode_steps*2)
+        self.step_penalty = 1./(self.max_episode_steps)
 
         self.action_low = np.array([0.0, -np.pi/4])
         self.action_high = np.array([0.3, np.pi/4])
@@ -118,29 +118,40 @@ class Go2Goal(gym.Env):
         if self.viewer is None:
             from gym.envs.classic_control import rendering
             self.viewer = rendering.Viewer(screen_width, screen_height)
-            vs = [c+Go2Goal.cossin(0)*sh, c+Go2Goal.cossin(-np.pi/2)*ss, c+Go2Goal.cossin(np.pi/2)*ss]
+            # Draw grids
+            # Todo: write better code for making grids...
+            for i in np.arange(-1.5, 1.5, step=0.5):
+                pt = i*scale + screen_width/2.
+                line = rendering.Line((0, pt), (screen_width, pt))
+                line.set_color(0.5, 0.55, 0.52)
+                self.viewer.add_geom(line)
+                pt = i*scale + screen_width/2.
+                line = rendering.Line((pt, 0), (pt, screen_width))
+                line.set_color(0.5, 0.55, 0.52)
+                self.viewer.add_geom(line)
 
-            goal = rendering.FilledPolygon([tuple(i) for i in vs])
+
+            self.goal_vec = rendering.Line((0, 0), (10, 10))
+            self.goal_vec.set_color(1., 0.01, 0.02)
+            self.viewer.add_geom(self.goal_vec)
+
+            goal = rendering.make_circle()
             goal.set_color(.3,.82,.215)
             self.visual_goal_trans = rendering.Transform()
             goal.add_attr(self.visual_goal_trans)
             self.viewer.add_geom(goal)
 
+
+            vs = [c+Go2Goal.cossin(0)*sh, c+Go2Goal.cossin(-np.pi/2)*ss, c+Go2Goal.cossin(np.pi/2)*ss]
             agent = rendering.FilledPolygon([tuple(i) for i in vs])
             agent.set_color(.15,.235,.459)
             self.visual_agent_trans = rendering.Transform()
             agent.add_attr(self.visual_agent_trans)
             self.viewer.add_geom(agent)
 
-            for i in np.arange(-1.5, 1.5, step=0.5):
-                pt = i*scale + screen_width/2.
-                line = rendering.Line((0, pt), (screen_width, pt))
-                line.set_color(0, 0, 0)
-                self.viewer.add_geom(line)
-                pt = i*scale + screen_width/2.
-                line = rendering.Line((pt, 0), (pt, screen_width))
-                line.set_color(0, 0, 0)
-                self.viewer.add_geom(line)
+        self.goal_vec.start = tuple((a*scale+screen_width/2.0))
+        self.goal_vec.end = tuple((a*scale+screen_width/2.0)+
+                            self.obs["desired_goal"][:-1]*self.obs["desired_goal"][-1]*scale)
 
         self.visual_goal_trans.set_translation(*(c*scale+screen_width/2.0))
         self.visual_goal_trans.set_rotation(theta)
@@ -177,9 +188,10 @@ class Go2Goal(gym.Env):
                 print("++"*50)
 
             ag = np.hstack([ag/norm(ag), norm(ag)])
-        return {"observation": sc,
-                "desired_goal": goal,
-                "achieved_goal": ag}
+        self.obs = {"observation": sc,
+                    "desired_goal": goal,
+                    "achieved_goal": ag}
+        return self.obs
 
     def close(self):
             if self.viewer:

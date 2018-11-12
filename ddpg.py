@@ -10,8 +10,9 @@ from memory import Memory
 
 class DDPG:
 
-    def __init__(self, sess, params):
+    def __init__(self, sess, scale_u, params):
         self.sess = sess
+        self.scale_u = scale_u
         self.__dict__.update(params)
         # create placeholders
         self.create_input_placeholders()
@@ -46,9 +47,7 @@ class DDPG:
             self.ou_level = self.noise.ornstein_uhlenbeck_level(self.ou_level)
             u = u + self.ou_level
         q = self.critic.predict(x, u)
-        if is_u_discrete:
-            return [np.argmax(u), u[0], q[0]]
-        return [u[0], u, q[0]]
+        return [self.scale_u(u[0]), u, q[0]]
 
     def remember(self, experience):
         self.memory.add(experience)

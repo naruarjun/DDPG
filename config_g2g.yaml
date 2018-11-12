@@ -20,7 +20,20 @@ noise_params:
 n_mem_objects:  8
 memory_size:    100000
 gamma:          0.99
-b_size:         200
-random_eps:     0.3
-n_episodes:     400000
-render:         True
+b_size: 200
+random_eps: 0.3
+
+
+# ROLLOUT RELATED CONFIG
+train_rollout:
+  n_episodes: 400000
+  render: True
+  name: test_rollouts
+  periodic_checkpt: 100
+  eval_after: 50
+eval_rollout:
+  n_episodes: 20
+  render: False
+  name: eval_rollouts
+  periodic_checkpt: False
+  save_best: True

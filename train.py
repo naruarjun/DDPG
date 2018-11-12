@@ -13,7 +13,10 @@ def load_config(filename):
     return config
 
 
-def scale_action(u):
+def scale_action_gen(u, env, u_min, u_max):
+    def scale_action(u):
+        return 
+
     return (u+1)/2. * [0.2, np.pi/2] + [0, -np.pi/4]
 
 
@@ -21,12 +24,11 @@ def train(config):
     env = gym.make("Go2Goal-v0")
     is_u_discrete = len(env.action_space.shape) == 0
     tf_session = tf.Session()
-    ddpg_agent = DDPG(tf_session, config)
+    ddpg_agent = DDPG(tf_session, scale_action, config)
     tf_session.run(tf.global_variables_initializer())
 
-    print(config.keys())
     saver = tf.train.Saver()
-    summarizer = FileWriter("__tensorboard/her2", tf_session.graph)
+    summarizer = FileWriter("__tensorboard/her", tf_session.graph)
     s_summary = tf.Summary()
     log_str = "| [{}] Episode: {:4} | Reward: {:7.3f} | Q: {:8.3f} | T: {:3d} | MIND: {:4.3f} |"
 
@@ -41,7 +43,8 @@ def train(config):
         episode_batch = []
         min_d2goal = env.distance_from_goal()
         for i in range(env._max_episode_steps):
-            # print(obs)
+            if "render" in config.keys() and config["render"]:
+                env.render()
             action, u, q = ddpg_agent.step(np.hstack([obs["observation"],
                                            obs["desired_goal"]]),
                                            is_u_discrete)
@@ -54,8 +57,6 @@ def train(config):
             if (info["dist"] < min_d2goal).all():
                 min_d2goal = info["dist"]
             obs = new_obs
-            if "render" in config.keys() and config["render"]:
-                env.render()
             episodic_r += r
             for epoch in range(5):
                 ddpg_agent.train()
