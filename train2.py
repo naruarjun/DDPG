@@ -16,25 +16,34 @@ def load_config(filename):
 
 def scale_action_gen(env, u_min, u_max):
     def scale_action(u):
+        u = np.clip(u, u_min, u_max)
+        # print("clipped ", u)
         zo = (u - u_min)/(u_max - u_min)
         return zo * (env.action_high - env.action_low) + env.action_low
     return scale_action
 
 
 def train(config):
-    env = gym.make("Go2Goal-v0")
+    from_ckpt = None
     tf_session = tf.Session()
+    if from_ckpt is not None:
+        new_saver = tf.train.import_meta_graph("{}.meta".format(from_ckpt))
+        new_saver.restore(sess, from_ckpt)
+        ip_tensor_names = ["r", "x", "u", "a", "pred_q"]
+        config["inputs"] = {i: sess.graph.get_tensor_by_name("inputs/{}:0".format(i)) for i in ip_tensor_names}
+    env = gym.make("Go2Goal-v0")
     scale_action = scale_action_gen(env, np.ones(2)*-1, np.ones(2))
     ddpg_agent = DDPG(tf_session, scale_action, config)
     tf_session.run(tf.global_variables_initializer())
     train_rollouts = RolloutGenerator(env, ddpg_agent, config["train_rollout"])
-    eval_rollouts = RolloutGenerator(env, ddpg_agent, config["eval_rollout"], eval=True)
+    eval_rollouts = RolloutGenerator(env, ddpg_agent, config["eval_rollout"], _eval=True)
 
     while not train_rollouts.done():
         train_rollouts.generate_rollout()
-        if train_rollouts.should_eval():
-            eval_rollouts.generate_rollout()
+        if (train_rollouts.episode) % config["eval_after"] == 0:
             eval_rollouts.reset()
+            while not eval_rollouts.done():
+                eval_rollouts.generate_rollout()
     # saver = tf.train.Saver()
     # summarizer = FileWriter("__tensorboard/her", tf_session.graph)
     # s_summary = tf.Summary()

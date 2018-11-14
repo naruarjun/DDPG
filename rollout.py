@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from util import error, info
 
 
 class RolloutGenerator:
@@ -12,27 +13,31 @@ class RolloutGenerator:
 	checkpoint(opt): perform rollout from a saved policy
 	"""
 
-	def __init__(self, env, agent, config: dict, eval=False, load_checkpt=None,
-				 summarizer=None):
+	def __init__(self, env, agent, config: dict, _eval=False, summarizer=None):
+		self.name = "{}_ROLLOUT".format("*EVAL" if _eval else "TRAIN")
 		self.env = env
 		self.agent = agent
-		self.train = train
-		self.checkpt = checkpt
-		self.current_best_score = 0.
-		self.__dict__.update(self.config)
+		self.eval = _eval
+		self.best_score = 0.
+		self.__dict__.update(config)
 		self.log_str = "| [{}] Episode: {:4} | Reward: {:7.3f} | "
-		self.log_str += "Q: {:8.3f} | T: {:3d} | MIN_D: {:4.3f} |"
-		self.p_ckpt = "__checkpoint/{}"
+		self.log_str += "Q: {:8.3f} | T: {:3d} |"
+		self.p_ckpt = "__checkpoints/{}_{}"
 		self.saver = tf.train.Saver()
+		if "periodic_ckpt" not in self.__dict__:
+			self.periodic_ckpt = False
+		if "save_best" not in self.__dict__:
+			self.save_best = False
 		if load_checkpt is not None:
 			self.restore_checkpt(load_checkpt)
 		self.reset()
+		info.out("Initialized {}".format(self.name))
 
-	def reset():
-		self.episode = 1
-
-	def restore_checkpt(self, load_checkpt):
-		pass
+	def reset(self):
+		self.q_total = 0.
+		self.r_total = 0.
+		self.t_steps = 0
+		self.episode = 0
 
 	def generate_rollout(self):
 		t = 0
@@ -40,7 +45,6 @@ class RolloutGenerator:
 		episodic_q = 0.
 		episodic_r = 0.
 		x = self.env.reset()
-		min_dist_achieved = self.env.distance_from_goal()
 		while not done and t < self.env.max_episode_steps:
 			a, u, q = self.agent.step(np.hstack([x["observation"],
 												 x["desired_goal"]]),
@@ -60,32 +64,50 @@ class RolloutGenerator:
 			episodic_r += float(r)
 			episodic_q += float(q)
 
-			if info["dist"] < min_dist_achieved:
-				min_dist_achieved = info["dist"]
-
 			# Train agent if required
-			if self.train:
+			if not self.eval:
 				assert "train_cycles_per_ts"
 				for i in range(self.train_cycles_per_ts):
 					self.agent.train()
-		if "periodic_checkpt" in self.__dict__:
-			self.create_checkpoint()
 		self.episode += 1
-		self.log(episodic_q/t, episodic_r/t, t, min_dist_achieved)
+		self.update_stats(episodic_q, episodic_r, t)
+		if not self.eval:
+			self.log(episodic_q, episodic_r, t)
+		self.create_checkpoint()
 
 	def create_checkpoint(self):
-		if self.episode % periodic_checkpt == 0:
-			print("Creating periodic checkpoint")
-			self.saver.save(self.agent.sess, self.p_ckpt.format(self.episode))
+		if self.periodic_ckpt and self.episode % self.periodic_ckpt == 0:
+			info.out("Creating periodic checkpoint")
+			self.saver.save(self.agent.sess,
+							self.p_ckpt.format("P", self.episode))
+		if self.eval and self.save_best and self.mean_er > self.best_score:
+			info.out("New best score: {}".format(self.mean_er))
+			self.best_score = self.mean_er
+			self.saver.save(self.agent.sess,
+							self.p_ckpt.format("B", self.episode))
 
-	def log(self, mean_q, mean_r, t, min_d):
-		print(self.log_str.format(self.episode, mean_r, mean_q, t, min_d))
+	def update_stats(self, eps_q, eps_r, t):
+		self.q_total += eps_q
+		self.r_total += eps_r
+		self.t_steps += t
+		self.mean_eq = self.q_total/self.episode
+		self.mean_er = self.r_total/self.episode
+
+	def log(self, q, r, t):
+		if not self.eval:
+			print(self.log_str.format(self.name, self.episode, r, q, t))
+		else:
+			evalstr = "\nEVAL RESULT:\nMEAN REWARD: {}\nMEAN QVALUE: {}"
+			evalstr += "\nTIMESTEPS: {}\n"
+			print()
+			info.out(evalstr.format(r, q, t))
+			print()
 
 	def done(self):
-		return self.n_episodes < self.episode
-
-	def should_eval(self):
-		return self.episode % self.eval_after == 0
+		done = self.n_episodes <= self.episode
+		if done and self.eval:
+			self.log(self.mean_eq, self.mean_er, self.t_steps)
+		return done
 
 	# def summarize(self):
 	# 	if self.summarizer is None:

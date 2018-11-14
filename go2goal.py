@@ -41,11 +41,11 @@ class Go2Goal(gym.Env):
         self.her = True
         # self.seed = None
         self.thresh = np.array([0.05, 0.05, 0.1])[:-1]
-        self.num_iter = 25
+        self.num_iter = 50
         self.reward_max = 1
-        self.max_episode_steps = 50
-        self._max_episode_steps = 50
-        self.step_penalty = 1./(self.max_episode_steps)
+        self.max_episode_steps = 25
+        self._max_episode_steps = 25
+        self.step_penalty = 1.#/(self.max_episode_steps)
 
         self.action_low = np.array([0.0, -np.pi/4])
         self.action_high = np.array([0.3, np.pi/4])
@@ -169,7 +169,8 @@ class Go2Goal(gym.Env):
         goal_vec, angle = np.split((self.goal - self.agent.pose), [-1])
         distance = np.linalg.norm(goal_vec)
         unit_vec = goal_vec / distance if distance != 0 else goal_vec
-        c_dist = min(distance, self.d_clip)#/self.d_clip
+        # c_dist = min(distance, self.d_clip)#/self.d_clip
+        c_dist = distance
         sc = np.hstack([np.cos(self.agent.pose.theta), np.sin(self.agent.pose.theta)])
         goal = np.hstack([unit_vec, c_dist])
         if not self.her:
@@ -179,13 +180,7 @@ class Go2Goal(gym.Env):
         else:
             ag = (self.agent.pose - prev_pose)[:-1]
             if norm(ag) < 1e-6:
-                print("++"*50)
-                print(self.agent.pose)
-                print(prev_pose)
-                print(self.goal)
-                print(ag)
-                ag += 1e-5
-                print("++"*50)
+                ag += 1e-8
 
             ag = np.hstack([ag/norm(ag), norm(ag)])
         self.obs = {"observation": sc,
@@ -213,27 +208,3 @@ register(
     id='Go2Goal-v0',
     entry_point='go2goal:Go2Goal',
 )
-
-if __name__ == "__main__":
-    register_env("Go2Goal-v0", lambda config: Go2Goal(config))
-    ray.init()
-    run_experiments({
-        "demo": {
-            "run": "DDPG",
-            "env": "Go2Goal-v0",
-            "config": {
-                "learning_starts": 1000,
-                "horizon": 120,
-                "actor_hiddens": [150, 150],
-                "critic_hiddens": [150, 150],
-                "schedule_max_timesteps": 1000000,
-                "timesteps_per_iteration": 120,
-                "exploration_fraction": 0.2,
-                "gpu": False,
-                "num_workers": 11,
-                # "env_config": {
-                #     "seed": 5,
-                # },
-            },
-        },
-    })

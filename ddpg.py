@@ -15,7 +15,8 @@ class DDPG:
         self.scale_u = scale_u
         self.__dict__.update(params)
         # create placeholders
-        self.create_input_placeholders()
+        if "inputs" not in params.keys():
+            self.create_input_placeholders()
         # create actor/critic models
         self.actor = Actor(self.sess, self.inputs, **self.actor_params)
         self.critic = Critic(self.sess, self.inputs, **self.critic_params)
@@ -40,13 +41,17 @@ class DDPG:
                                               shape=(None, 1),
                                               name="pred_q")
 
-    def step(self, x, is_u_discrete, explore=True):
+    def step(self, x, explore=True):
         x = x.reshape(-1, self.dimensions["x"])
-        u = self.actor.predict(x)
         if explore:
+            u = self.actor.predict(x)
             self.ou_level = self.noise.ornstein_uhlenbeck_level(self.ou_level)
+            # print(self.ou_level, u)
             u = u + self.ou_level
-        q = self.critic.predict(x, u)
+            q = self.critic.predict(x, u)
+        else:
+            u = self.actor.predict_target(x)
+            q = self.critic.predict_target(x, u)
         return [self.scale_u(u[0]), u, q[0]]
 
     def remember(self, experience):

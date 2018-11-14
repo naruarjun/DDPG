@@ -9,7 +9,7 @@ class Noise(object):
         self.sigma = sigma
         self.ou_a = ou_a
         self.ou_mu = ou_mu
-        print(self.__dict__)
+        # print(self.__dict__)
 
     def brownian_motion_log_returns(self):
         sqrt_delta_sigma = np.sqrt(self.delta) * self.sigma

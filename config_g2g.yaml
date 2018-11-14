@@ -3,8 +3,8 @@ dimensions:
   r: 1 
   u: 2
 actor_params:
-  n_layers: 2
-  n_units : 200
+  n_layers: 3
+  n_units : 100
   tau:      0.01
   lr:       0.0001
 critic_params:
@@ -13,8 +13,8 @@ critic_params:
   tau:      0.01
   lr:       0.001
 noise_params:
-  delta: 0.5,0.5
-  sigma: 0.5,0.8
+  delta: 0.5,0.2
+  sigma: 0.5,0.7
   ou_a:  0.6,0.6
   ou_mu: 0.5,0.0
 n_mem_objects:  8
@@ -25,15 +25,14 @@ random_eps: 0.3
 
 
 # ROLLOUT RELATED CONFIG
+eval_after: 20
 train_rollout:
   n_episodes: 400000
-  render: True
-  name: test_rollouts
-  periodic_checkpt: 100
-  eval_after: 50
-eval_rollout:
-  n_episodes: 20
   render: False
-  name: eval_rollouts
-  periodic_checkpt: False
+  periodic_ckpt: 100
+  train_cycles_per_ts: 10
+eval_rollout:
+  n_episodes: 10
+  render: True
+  periodic_ckpt: False
   save_best: True
