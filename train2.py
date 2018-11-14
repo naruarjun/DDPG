@@ -37,7 +37,7 @@ def train(config):
         tf_session.run(tf.global_variables_initializer())
     train_rollouts = RolloutGenerator(env, ddpg_agent, config["train_rollout"])
     eval_rollouts = RolloutGenerator(env, ddpg_agent, config["eval_rollout"],
-                                     eval=True)
+                                     _eval=True)
 
     while not train_rollouts.done():
         train_rollouts.generate_rollout()
