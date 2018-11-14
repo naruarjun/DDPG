@@ -7,7 +7,7 @@ TVARS = GraphKeys.TRAINABLE_VARIABLES
 
 class FCNN:
     def __init__(self, _input, op_dim, n_layers, n_units, activation,
-                 op_act=None, name="FCNN", w_init=None):
+                 op_act=None, name="FCNN", w_init=None, from_ckpt=False):
         print("CREATING NETWORK NAMED {}".format(name))
         self._input = _input
         self.op_dim = op_dim
@@ -17,7 +17,18 @@ class FCNN:
         self.scope = name
         self.op_act = op_act
         self.w_init = w_init if w_init is not None else TN(stddev=1e-1)
-        self.make()
+        if from_ckpt:
+            self.load_from_ckpt()
+        else:
+            self.make()
+
+    def load_from_ckpt(self):
+        tensorname = "{}/Tanh" if self.op_act == tf.nn.tanh else "{}/Relu"
+        ln = self.n_layers
+        if self.op_act != self.activation:
+            ln = ln - 1
+        self.nn = self.sess.graph.get_tensor_by_name(tensorname.format("_"+ln))
+        self.net_params = tf.get_collection(TVARS, scope=self.scope)
 
     def make(self):
         with tf.variable_scope(self.scope):

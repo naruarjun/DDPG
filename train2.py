@@ -28,9 +28,10 @@ def train(config):
     tf_session = tf.Session()
     if from_ckpt is not None:
         new_saver = tf.train.import_meta_graph("{}.meta".format(from_ckpt))
-        new_saver.restore(sess, from_ckpt)
+        new_saver.restore(tf_session, from_ckpt)
         ip_tensor_names = ["r", "x", "u", "a", "pred_q"]
-        config["inputs"] = {i: sess.graph.get_tensor_by_name("inputs/{}:0".format(i)) for i in ip_tensor_names}
+        config["inputs"] = {i: tf_session.graph.get_tensor_by_name(
+                            "inputs/{}:0".format(i)) for i in ip_tensor_names}
     env = gym.make("Go2Goal-v0")
     scale_action = scale_action_gen(env, np.ones(2)*-1, np.ones(2))
     ddpg_agent = DDPG(tf_session, scale_action, config)

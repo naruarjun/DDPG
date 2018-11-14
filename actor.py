@@ -11,19 +11,21 @@ from FCNN import FCNN
 class Actor:
     def __init__(self, sess, input_t, **params):
         self.session = sess
+        self.load_from_ckpt = False
         self.__dict__.update(params)
         self.__dict__.update(input_t)
         self.generate_networks()
         self.define_operations()
 
-    def generate_networks(self):
+    def generate_networks(self, load_from_ckpt=False):
         # MAIN ACTOR NETWORK
         self.pi = FCNN(self.x, self.u.shape[-1], self.n_layers, self.n_units,
                        tf.nn.relu, tf.nn.tanh, name="pi",
-                       w_init=TN(stddev=1e-1))
+                       w_init=TN(stddev=1e-1), from_ckpt=self.load_from_ckpt)
         # TARGET ACTOR NETWORK
         self.PI = FCNN(self.x, self.u.shape[-1], self.n_layers, self.n_units,
-                       tf.nn.relu, tf.nn.tanh, name="t_pi")
+                       tf.nn.relu, tf.nn.tanh, name="t_pi",
+                       from_ckpt=self.load_from_ckpt)
 
     def define_operations(self):
         with tf.name_scope("actor_ops"):
