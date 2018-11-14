@@ -17,18 +17,7 @@ class FCNN:
         self.scope = name
         self.op_act = op_act
         self.w_init = w_init if w_init is not None else TN(stddev=1e-1)
-        if from_ckpt:
-            self.load_from_ckpt()
-        else:
-            self.make()
-
-    def load_from_ckpt(self):
-        tensorname = "{}/Tanh" if self.op_act == tf.nn.tanh else "{}/Relu"
-        ln = self.n_layers
-        if self.op_act != self.activation:
-            ln = ln - 1
-        self.nn = self.sess.graph.get_tensor_by_name(tensorname.format("_"+ln))
-        self.net_params = tf.get_collection(TVARS, scope=self.scope)
+        self.make()
 
     def make(self):
         with tf.variable_scope(self.scope):

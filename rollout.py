@@ -28,8 +28,8 @@ class RolloutGenerator:
 			self.periodic_ckpt = False
 		if "save_best" not in self.__dict__:
 			self.save_best = False
-		if load_checkpt is not None:
-			self.restore_checkpt(load_checkpt)
+		# if load_checkpt is not None:
+		# 	self.restore_checkpt(load_checkpt)
 		self.reset()
 		info.out("Initialized {}".format(self.name))
 
