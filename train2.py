@@ -29,18 +29,15 @@ def train(config):
     if from_ckpt is not None:
         new_saver = tf.train.import_meta_graph("{}.meta".format(from_ckpt))
         new_saver.restore(tf_session, from_ckpt)
-        placeholders = [ op for op in tf_session.graph.get_operations() if op.type != "Placeholder"]
-        # [print(pl) for pl in placeholders]
         ip_tensor_names = ["r", "x", "u"]
-        config["inputs"] = {i: tf_session.graph.get_tensor_by_name("inputs/{}:0".format(i)) 
-                            for i in ip_tensor_names}
+        config["inputs"] = {i: tf_session.graph.get_tensor_by_name(
+                            "inputs/{}:0".format(i)) for i in ip_tensor_names}
         config["inputs"]["g"] = tf_session.graph.get_tensor_by_name("inputs/a_grad:0")
         config["inputs"]["p"] = tf_session.graph.get_tensor_by_name("inputs/pred_q:0")
-        config["actor_params"]["load_from_ckpt"] = True 
-        config["critic_params"]["load_from_ckpt"] = True 
+        config["actor_params"]["load_from_ckpt"] = True
+        config["critic_params"]["load_from_ckpt"] = True
     else:
         tf_session.run(tf.global_variables_initializer())
-        
 
     env = gym.make("Go2Goal-v0")
     scale_action = scale_action_gen(env, np.ones(2)*-1, np.ones(2))
