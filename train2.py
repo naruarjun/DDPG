@@ -24,17 +24,27 @@ def scale_action_gen(env, u_min, u_max):
 
 
 def train(config):
-    from_ckpt = None
+    from_ckpt = "__checkpoints/P_2900"
     tf_session = tf.Session()
     if from_ckpt is not None:
         new_saver = tf.train.import_meta_graph("{}.meta".format(from_ckpt))
-        new_saver.restore(sess, from_ckpt)
-        ip_tensor_names = ["r", "x", "u", "a", "pred_q"]
-        config["inputs"] = {i: sess.graph.get_tensor_by_name("inputs/{}:0".format(i)) for i in ip_tensor_names}
+        new_saver.restore(tf_session, from_ckpt)
+        placeholders = [ op for op in tf_session.graph.get_operations() if op.type != "Placeholder"]
+        # [print(pl) for pl in placeholders]
+        ip_tensor_names = ["r", "x", "u"]
+        config["inputs"] = {i: tf_session.graph.get_tensor_by_name("inputs/{}:0".format(i)) 
+                            for i in ip_tensor_names}
+        config["inputs"]["g"] = tf_session.graph.get_tensor_by_name("inputs/a_grad:0")
+        config["inputs"]["p"] = tf_session.graph.get_tensor_by_name("inputs/pred_q:0")
+        config["actor_params"]["load_from_ckpt"] = True 
+        config["critic_params"]["load_from_ckpt"] = True 
+    else:
+        tf_session.run(tf.global_variables_initializer())
+        
+
     env = gym.make("Go2Goal-v0")
     scale_action = scale_action_gen(env, np.ones(2)*-1, np.ones(2))
     ddpg_agent = DDPG(tf_session, scale_action, config)
-    tf_session.run(tf.global_variables_initializer())
     train_rollouts = RolloutGenerator(env, ddpg_agent, config["train_rollout"])
     eval_rollouts = RolloutGenerator(env, ddpg_agent, config["eval_rollout"], _eval=True)
 
