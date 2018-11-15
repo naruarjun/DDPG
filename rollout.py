@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import tensorflow as tf
 from util import info
@@ -68,6 +69,9 @@ class RolloutGenerator:
                 assert "train_cycles_per_ts"
                 for i in range(self.train_cycles_per_ts):
                     self.agent.train()
+            else:
+                if "step_sleep" in self.__dict__:
+                    time.sleep(self.step_sleep)
         self.episode += 1
         self.update_stats(episodic_q, episodic_r, t)
         if not self.eval:
