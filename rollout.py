@@ -13,7 +13,7 @@ class RolloutGenerator:
     checkpoint(opt): perform rollout from a saved policy
     """
 
-    def __init__(self, env, agent, config: dict, _eval=False, summarizer=None):
+    def __init__(self, env, agent, config: dict, _eval=False, summarize=False):
         self.name = "{}_ROLLOUT".format("*EVAL" if _eval else "TRAIN")
         self.env = env
         self.agent = agent
@@ -28,8 +28,6 @@ class RolloutGenerator:
             self.periodic_ckpt = False
         if "save_best" not in self.__dict__:
             self.save_best = False
-        # if load_checkpt is not None:
-        #     self.restore_checkpt(load_checkpt)
         self.reset()
         info.out("Initialized {}".format(self.name))
 
@@ -38,6 +36,7 @@ class RolloutGenerator:
         self.r_total = 0.
         self.t_steps = 0
         self.episode = 0
+        self.success = 0
 
     def generate_rollout(self):
         t = 0
@@ -73,6 +72,8 @@ class RolloutGenerator:
         self.update_stats(episodic_q, episodic_r, t)
         if not self.eval:
             self.log(episodic_q, episodic_r, t)
+        if self.eval and info["is_success"]:
+            self.success += 1
         self.create_checkpoint()
 
     def create_checkpoint(self):
@@ -98,9 +99,9 @@ class RolloutGenerator:
             print(self.log_str.format(self.name, self.episode, r, q, t))
         else:
             evalstr = "\nEVAL RESULT:\nMEAN REWARD: {}\nMEAN QVALUE: {}"
-            evalstr += "\nTIMESTEPS: {}\n"
+            evalstr += "\nTIMESTEPS: {}\nSUCCESS RATE: {}\n"
             print()
-            info.out(evalstr.format(r, q, t))
+            info.out(evalstr.format(r, q, t, 100*(self.success/self.n_episodes)))
             print()
 
     def done(self):
