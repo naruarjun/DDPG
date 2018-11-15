@@ -29,7 +29,8 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
     config = load_config(args.config)
-    print(eval(config, args.from_ckpt))
+    print(config)
+    eval(config, args.from_ckpt)
 
 
 if __name__ == "__main__":
