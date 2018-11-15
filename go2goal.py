@@ -10,10 +10,6 @@ from numpy.random import random
 from PointEnvironment.Agent import Agent
 from PointEnvironment.Pose import Pose
 
-import ray
-from ray.tune import run_experiments
-from ray.tune.registry import register_env
-
 
 class Go2Goal(gym.Env):
 
@@ -45,7 +41,7 @@ class Go2Goal(gym.Env):
         self.reward_max = 1
         self.max_episode_steps = 25
         self._max_episode_steps = 25
-        self.step_penalty = 1.#/(self.max_episode_steps)
+        self.step_penalty = 1.0  # (self.max_episode_steps)
 
         self.action_low = np.array([0.0, -np.pi/4])
         self.action_high = np.array([0.3, np.pi/4])
@@ -110,7 +106,8 @@ class Go2Goal(gym.Env):
 
         world_width = 2.5
         scale = screen_width/world_width
-        if self.goal is None: return None
+        if self.goal is None:
+            return None
         c, theta = np.split(self.goal.tolist(), [2])
         a, atheta = np.split(self.agent.pose.tolist(), [2])
         sh = 20
@@ -130,36 +127,35 @@ class Go2Goal(gym.Env):
                 line.set_color(0.5, 0.55, 0.52)
                 self.viewer.add_geom(line)
 
-
             self.goal_vec = rendering.Line((0, 0), (10, 10))
             self.goal_vec.set_color(1., 0.01, 0.02)
             self.viewer.add_geom(self.goal_vec)
 
             goal = rendering.make_circle()
-            goal.set_color(.3,.82,.215)
+            goal.set_color(0.3, 0.82, 0.215)
             self.visual_goal_trans = rendering.Transform()
             goal.add_attr(self.visual_goal_trans)
             self.viewer.add_geom(goal)
 
-
-            vs = [c+Go2Goal.cossin(0)*sh, c+Go2Goal.cossin(-np.pi/2)*ss, c+Go2Goal.cossin(np.pi/2)*ss]
+            vs = [c+Go2Goal.cossin(0)*sh, c+Go2Goal.cossin(-np.pi/2)*ss,
+                  c+Go2Goal.cossin(np.pi/2)*ss]
             agent = rendering.FilledPolygon([tuple(i) for i in vs])
-            agent.set_color(.15,.235,.459)
+            agent.set_color(0.15, 0.235, 0.459)
             self.visual_agent_trans = rendering.Transform()
             agent.add_attr(self.visual_agent_trans)
             self.viewer.add_geom(agent)
 
         self.goal_vec.start = tuple((a*scale+screen_width/2.0))
-        self.goal_vec.end = tuple((a*scale+screen_width/2.0)+
-                            self.obs["desired_goal"][:-1]*self.obs["desired_goal"][-1]*scale)
+        self.goal_vec.end = tuple((a*scale+screen_width/2.0) +
+                                  self.obs["desired_goal"][:-1] *
+                                  self.obs["desired_goal"][-1] * scale)
 
         self.visual_goal_trans.set_translation(*(c*scale+screen_width/2.0))
         self.visual_goal_trans.set_rotation(theta)
         self.visual_agent_trans.set_translation(*(a*scale+screen_width/2.0))
         self.visual_agent_trans.set_rotation(atheta)
 
-        return self.viewer.render(return_rgb_array = mode=='rgb_array')
-
+        return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
     def compute_obs(self, prev_pose=None):
         # our observations are going to be the distance to be moved in
@@ -171,7 +167,8 @@ class Go2Goal(gym.Env):
         unit_vec = goal_vec / distance if distance != 0 else goal_vec
         # c_dist = min(distance, self.d_clip)#/self.d_clip
         c_dist = distance
-        sc = np.hstack([np.cos(self.agent.pose.theta), np.sin(self.agent.pose.theta)])
+        sc = np.hstack([np.cos(self.agent.pose.theta),
+                        np.sin(self.agent.pose.theta)])
         goal = np.hstack([unit_vec, c_dist])
         if not self.her:
             return np.hstack([sc, goal])
