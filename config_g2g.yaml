@@ -28,11 +28,12 @@ random_eps: 0.3
 eval_after: 20
 train_rollout:
   n_episodes: 400000
-  render: False
+  render: True
   periodic_ckpt: 100
   train_cycles_per_ts: 10
 eval_rollout:
   n_episodes: 10
-  render: False
+  render: True
   periodic_ckpt: False
   save_best: True
+  step_sleep: 0.05
