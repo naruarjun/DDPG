@@ -10,10 +10,6 @@ from numpy.random import random
 from PointEnvironment.Agent import Agent
 from PointEnvironment.Pose import Pose
 
-import ray
-from ray.tune import run_experiments
-from ray.tune.registry import register_env
-
 
 class Go2Goal(gym.Env):
 
