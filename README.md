@@ -1,30 +1,28 @@
 # DDPG
-DDPG implementaion with Hindsight Experience Replay (HER) on bare Tensorflow
+DDPG implementaion with Hindsight Experience Replay (HER) on bare Tensorflow using Stage simulator with ROS.
 
 ## Setting up:
 1. Clone the repository
 ```console
 foo@bar:~$ git clone https://github.com/abhayraw1/DDPG.git
 ```
-
-2. Init submodule (This will clone the [Point Environment](https://github.com/aarg-kcis/PointEnvironment.git) repository)
-```console
-foo@bar:~$ cd DDPG
-foo@bar:~/DDPG$ git submodule init
-foo@bar:~/DDPG$ git submodule update
-```
-
-3. Create a virtual environment. 
+2. Create a virtual environment. 
 It's optional but *highly* recommended to do so. 
 You can create virtual environments using `virtualenv` or `conda`. 
 Make sure you create the environment for `python3`.
 
-4. Install the necessary dependencies in your virtual environment. Given below is a list of them.
+3. Install the necessary dependencies in your virtual environment. Given below is a list of them.
   ```yaml
+  # python dependencies install using pip (or conda).
   tensorflow # for neural nets and stuff
   tensorboard # for visualization purposes
   pyyaml # for parsing yaml config files
   gym # open-ai gym
+  
+  # others
+  ros-kinetic
+  stage_ros # sudo apt install ros-kinetic-stage-ros
+  stage # sudo apt install ros-kinetic-stage
   ```
   
 ## Running the code
@@ -57,3 +55,4 @@ It should look something like this:
 1. Deep Deterministic Policy Gradients Paper: [Continuous control with deep reinforcement learning
 ](https://arxiv.org/abs/1509.02971)
 2. Hindsight Experience Replay Paper: [Hindsight Experience Replay](https://arxiv.org/abs/1707.01495)
+3. Stage
