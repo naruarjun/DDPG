@@ -65,7 +65,7 @@ def train(config, from_ckpt=None):
     env = gym.make("Go2Goal-v0")
     scale_action = scale_action_gen(env, np.ones(2)*-1, np.ones(2))
     ddpg_agent = DDPG(tf_session, scale_action, config)
-    if from_ckpt is not None:
+    if from_ckpt not in [None, "None"]:
         new_saver = tf.train.Saver()
         new_saver.restore(tf_session, from_ckpt)
     else:
