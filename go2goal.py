@@ -2,6 +2,7 @@ import gym
 from gym.spaces import Box
 from gym.envs.registration import EnvSpec
 from gym.envs.registration import register
+from gym.envs.classic_control import rendering
 
 import numpy as np
 from numpy.linalg import norm
@@ -9,6 +10,7 @@ from numpy.random import random
 
 from PointEnvironment.Agent import Agent
 from PointEnvironment.Pose import Pose
+from util import error
 
 
 class Go2Goal(gym.Env):
@@ -47,13 +49,17 @@ class Go2Goal(gym.Env):
         self.action_high = np.array([0.3, np.pi/4])
         self.action_space = Box(self.action_low, self.action_high, dtype="f")
 
-        # so that the goals are within the range of performing actions
-        self.d_clip = self.action_high[0]*self.num_iter*self.dt*1.35
-
         self.observation_space = Box(low=-1, high=1, shape=(5,), dtype="f")
-
-        self.limits = np.array([1, 1, np.pi])
-        self.agent = Agent(0)
+        # World Limits
+        self.w_limits = np.array([20, 20])
+        # Screen Limits
+        self.s_limtis = np.array([600, 600])
+        self.scale = self.s_limtis/self.w_limits
+        assert self.scale.tolist().count(self.scale[0]) == len(self.scale),\
+        error.format("Scale for both axis must be equal...")
+        self.scale = self.scale[0]
+        self.agent_radius = 0.15 # in meters
+        self.agents = [Agent(i) for i in range(3)]
         if config is not None:
             self.__dict__.update(config)
 
@@ -68,9 +74,9 @@ class Go2Goal(gym.Env):
         self._spec = EnvSpec("Go2Goal-v0")
 
     def reset(self):
-        self.agent.reset(self.sample_pose())
+        [agent.reset(self.sample_pose()) for agent in self.agents]
         self.goal = self.sample_pose()
-
+        self.goal_changed = True
         # print("Agent spawned at: ", self.agent.pose)
         # print("Goalpoint set to: ", self.goal)
         return self.compute_obs()
@@ -98,62 +104,47 @@ class Go2Goal(gym.Env):
         return self.current_distance
 
     def sample_pose(self):
-        return Pose(*(random(3)*self.limits - self.limits/2))
+        x, y = random(2)*self.w_limits - self.w_limits/2
+        theta = (random()*2 - 1)*np.pi
+        return Pose(x=x, y=y, t=theta)
+
+    def init_viewer(self):
+        self.viewer = rendering.Viewer(*self.s_limtis)
+        # GOAL MARKER
+        circle = rendering.make_circle()
+        circle.set_color(0.3, 0.82, 0.215)
+        self.goal_tf = rendering.Transform()
+        circle.add_attr(self.goal_tf)
+        self.viewer.add_geom(circle)
+        # AGENT MARKERS
+        self.agent_tfs = []
+        a_rad_px = self.agent_radius * self.scale
+        vertices = [a_rad_px*Go2Goal.cossin(np.radians(i)) for i in [0, 140, -140]]
+        for i in self.agents:
+            agent = rendering.FilledPolygon([tuple(j) for j in vertex])
+            agent.set_color(0.15, 0.235, 0.459)
+            agent_tf = rendering.Transform()
+            agent.add_attr(self.visual_agent_trans)
+            self.agent_tfs.append(agent_tf)
+            self.viewer.add_geom(agent)
+        # GOAL VECTORS
+        # self.goal_vex = [rendering.Line((0, 0), (1, 1)) for i in self.agents]
+        # [i.set_color(1., 0.01, 0.02) for i in self.goal_vex]
+        # [self.viewer.add_geom(i) for i in self.goal_vex]
 
     def render(self, mode='human'):
-        screen_width = 500
-        screen_height = 500
-
-        world_width = 2.5
-        scale = screen_width/world_width
         if self.goal is None:
             return None
-        c, theta = np.split(self.goal.tolist(), [2])
-        a, atheta = np.split(self.agent.pose.tolist(), [2])
-        sh = 20
-        ss = 5
         if self.viewer is None:
-            from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(screen_width, screen_height)
-            # Draw grids
-            # Todo: write better code for making grids...
-            for i in np.arange(-1.5, 1.5, step=0.5):
-                pt = i*scale + screen_width/2.
-                line = rendering.Line((0, pt), (screen_width, pt))
-                line.set_color(0.5, 0.55, 0.52)
-                self.viewer.add_geom(line)
-                pt = i*scale + screen_width/2.
-                line = rendering.Line((pt, 0), (pt, screen_width))
-                line.set_color(0.5, 0.55, 0.52)
-                self.viewer.add_geom(line)
-
-            self.goal_vec = rendering.Line((0, 0), (10, 10))
-            self.goal_vec.set_color(1., 0.01, 0.02)
-            self.viewer.add_geom(self.goal_vec)
-
-            goal = rendering.make_circle()
-            goal.set_color(0.3, 0.82, 0.215)
-            self.visual_goal_trans = rendering.Transform()
-            goal.add_attr(self.visual_goal_trans)
-            self.viewer.add_geom(goal)
-
-            vs = [c+Go2Goal.cossin(0)*sh, c+Go2Goal.cossin(-np.pi/2)*ss,
-                  c+Go2Goal.cossin(np.pi/2)*ss]
-            agent = rendering.FilledPolygon([tuple(i) for i in vs])
-            agent.set_color(0.15, 0.235, 0.459)
-            self.visual_agent_trans = rendering.Transform()
-            agent.add_attr(self.visual_agent_trans)
-            self.viewer.add_geom(agent)
-
-        self.goal_vec.start = tuple((a*scale+screen_width/2.0))
-        self.goal_vec.end = tuple((a*scale+screen_width/2.0) +
-                                  self.obs["desired_goal"][:-1] *
-                                  self.obs["desired_goal"][-1] * scale)
-
-        self.visual_goal_trans.set_translation(*(c*scale+screen_width/2.0))
-        self.visual_goal_trans.set_rotation(theta)
-        self.visual_agent_trans.set_translation(*(a*scale+screen_width/2.0))
-        self.visual_agent_trans.set_rotation(atheta)
+            self.init_viewer()
+        if self.goal_changed:
+            self.goal_changed = False
+            self.goal_tf.set_translation(self.goal.x*self.scale,
+                                         self.goal.y*self.scale)
+        for agent, agent_tf in zip(self.agents, self.agent_tfs):
+            agent_tf.set_translation(self.agent.pose.x*self.scale,
+                                     self.agent.pose.y*self.scale)
+            agent_tf.set_rotation(self.agent.pose.theta)
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
@@ -162,24 +153,23 @@ class Go2Goal(gym.Env):
         # the direction of the goal in the vector form...
         # to be brief obs =  pos vec of goal relative to agent...
         # but what about angles? lets ignore them for now...
-        goal_vec, angle = np.split((self.goal - self.agent.pose), [-1])
-        distance = np.linalg.norm(goal_vec)
-        unit_vec = goal_vec / distance if distance != 0 else goal_vec
-        # c_dist = min(distance, self.d_clip)#/self.d_clip
-        c_dist = distance
-        sc = np.hstack([np.cos(self.agent.pose.theta),
-                        np.sin(self.agent.pose.theta)])
-        goal = np.hstack([unit_vec, c_dist])
+        goal_vex = [np.array(self.goal[:-1]) - agent.pose[:-1] 
+                    for agent in self.agents]
+        distance = [norm(goal_vec) for goal_vec in goal_vex]
+        unit_vex = [(goal_vec / dist if distance != 0 else goal_vec)
+                    for goal_vec, dist in zip(goal_vex, distance)]
+        sc = [Go2Goal.cossin(agent.pose.theta) for agent in self.agents]
+        goal = [np.hstack(i) for i in zip(goal_vex, distance)]
         if not self.her:
             return np.hstack([sc, goal])
-        if prev_pose is None:
-            ag = np.zeros(3)
-        else:
-            ag = (self.agent.pose - prev_pose)[:-1]
-            if norm(ag) < 1e-6:
-                ag += 1e-8
+        ag = [np.zeros(3) for i in self.agents]
+        if prev_pose is not None:
+            for idx, agent in enumerate(self.agents):
+                agx = (agent.pose - prev_pose[idx])[:-1]
+                if norm(ag) < 1e-8:
+                    ag = 1e-8
 
-            ag = np.hstack([ag/norm(ag), norm(ag)])
+                ag[idx] = np.hstack([agx/norm(agx), norm(agx)])
         self.obs = {"observation": sc,
                     "desired_goal": goal,
                     "achieved_goal": ag}
