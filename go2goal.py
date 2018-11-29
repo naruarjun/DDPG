@@ -1,18 +1,18 @@
+import os
+import sys
+import rospy
+import subprocess as sp
+
 import gym
 from gym.spaces import Box
-from gym.envs.registration import EnvSpec
 from gym.envs.registration import register
 
 import numpy as np
 from numpy.linalg import norm
 from numpy.random import random
 
-from PointEnvironment.Agent import Agent
-from PointEnvironment.Pose import Pose
-
-import ray
-from ray.tune import run_experiments
-from ray.tune.registry import register_env
+from AgentStage import AgentStage as Agent
+from util import error, warn, info
 
 
 class Go2Goal(gym.Env):
@@ -36,175 +36,111 @@ class Go2Goal(gym.Env):
 
         """
         # Default values. Will be overridden if specified in config
-        self.dt = 1e-2
-        # self.her = True
+        self.launch_stage()
         self.her = True
-        # self.seed = None
-        self.thresh = np.array([0.05, 0.05, 0.1])[:-1]
-        self.num_iter = 50
-        self.reward_max = 1
-        self.max_episode_steps = 25
-        self._max_episode_steps = 25
-        self.step_penalty = 1.#/(self.max_episode_steps)
+        self.seed = None
+        self.thresh = np.array([0.15, 0.15])
+        self.reward_max = 10
+        self.max_episode_steps = 250
+        self._max_episode_steps = 250
+        self.step_penalty = .5#/(self.max_episode_steps)
+        self.stall_penalty = 20
 
         self.action_low = np.array([0.0, -np.pi/4])
         self.action_high = np.array([0.3, np.pi/4])
         self.action_space = Box(self.action_low, self.action_high, dtype="f")
-
-        # so that the goals are within the range of performing actions
-        self.d_clip = self.action_high[0]*self.num_iter*self.dt*1.35
-
         self.observation_space = Box(low=-1, high=1, shape=(5,), dtype="f")
-
-        self.limits = np.array([1, 1, np.pi])
-        self.agent = Agent(0)
+        
         if config is not None:
             self.__dict__.update(config)
-
-        # if self.seed is not None:
-        #     np.random.seed(self.seed)
-
+        
+        self.put_seed(self.seed)
+        self.agent = Agent(0)
         self.goal = None
-        if not self.her:
-            self.dMax = self.action_high[0]*self.dt*self.num_iter
-            self.dRange = 2*self.dMax
-        self.viewer = None
-        self._spec = EnvSpec("Go2Goal-v0")
+        rospy.init_node("stageGo2Goal")
 
     def reset(self):
-        self.agent.reset(self.sample_pose())
-        self.goal = self.sample_pose()
-
-        # print("Agent spawned at: ", self.agent.pose)
-        # print("Goalpoint set to: ", self.goal)
+        self.agent.reset(self.sample_goal())
+        self.goal = self.sample_goal()
+        info.out("Goal set to: {}".format(self.goal.tolist()))
         return self.compute_obs()
 
     def step(self, action):
-        assert self.goal is not None, "Call reset before calling step"
-        prev_pose = Pose(*self.agent.pose.tolist())
-        for i in range(self.num_iter):
-            self.agent.step(action)
+        assert self.goal is not None, error.format("Call reset before step")
+        prev_pose = self.agent.pose[:]
+        self.agent.step(action)
         reward, done = self.get_reward()
         return self.compute_obs(prev_pose), reward, done,\
-            {"dist": self.current_distance, "is_success": done}
+            {"dist": self.current_distance, "is_success": reward>0}
 
     def get_reward(self):
         reached = (self.distance_from_goal() < self.thresh).all()
+        if self.agent.stall:
+            return -self.stall_penalty, True
         if reached:
             return self.reward_max, True
         return -self.step_penalty, False
-        # return -self.step_penalty if not reached else self.reward_max
-        # reward = self.reward_max if reached else 0.0
-        # return reward-self.step_penalty, reached
 
     def distance_from_goal(self):
-        self.current_distance = np.abs((self.agent.pose - self.goal))[:-1]
+        self.current_distance = np.abs((self.agent.pose[:-1] - self.goal))
+        info.out("Dist: {}".format(norm(self.current_distance)))
         return self.current_distance
 
-    def sample_pose(self):
-        return Pose(*(random(3)*self.limits - self.limits/2))
-
-    def render(self, mode='human'):
-        screen_width = 500
-        screen_height = 500
-
-        world_width = 2.5
-        scale = screen_width/world_width
-        if self.goal is None: return None
-        c, theta = np.split(self.goal.tolist(), [2])
-        a, atheta = np.split(self.agent.pose.tolist(), [2])
-        sh = 20
-        ss = 5
-        if self.viewer is None:
-            from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(screen_width, screen_height)
-            # Draw grids
-            # Todo: write better code for making grids...
-            for i in np.arange(-1.5, 1.5, step=0.5):
-                pt = i*scale + screen_width/2.
-                line = rendering.Line((0, pt), (screen_width, pt))
-                line.set_color(0.5, 0.55, 0.52)
-                self.viewer.add_geom(line)
-                pt = i*scale + screen_width/2.
-                line = rendering.Line((pt, 0), (pt, screen_width))
-                line.set_color(0.5, 0.55, 0.52)
-                self.viewer.add_geom(line)
-
-
-            self.goal_vec = rendering.Line((0, 0), (10, 10))
-            self.goal_vec.set_color(1., 0.01, 0.02)
-            self.viewer.add_geom(self.goal_vec)
-
-            goal = rendering.make_circle()
-            goal.set_color(.3,.82,.215)
-            self.visual_goal_trans = rendering.Transform()
-            goal.add_attr(self.visual_goal_trans)
-            self.viewer.add_geom(goal)
-
-
-            vs = [c+Go2Goal.cossin(0)*sh, c+Go2Goal.cossin(-np.pi/2)*ss, c+Go2Goal.cossin(np.pi/2)*ss]
-            agent = rendering.FilledPolygon([tuple(i) for i in vs])
-            agent.set_color(.15,.235,.459)
-            self.visual_agent_trans = rendering.Transform()
-            agent.add_attr(self.visual_agent_trans)
-            self.viewer.add_geom(agent)
-
-        self.goal_vec.start = tuple((a*scale+screen_width/2.0))
-        self.goal_vec.end = tuple((a*scale+screen_width/2.0)+
-                            self.obs["desired_goal"][:-1]*self.obs["desired_goal"][-1]*scale)
-
-        self.visual_goal_trans.set_translation(*(c*scale+screen_width/2.0))
-        self.visual_goal_trans.set_rotation(theta)
-        self.visual_agent_trans.set_translation(*(a*scale+screen_width/2.0))
-        self.visual_agent_trans.set_rotation(atheta)
-
-        return self.viewer.render(return_rgb_array = mode=='rgb_array')
-
-
     def compute_obs(self, prev_pose=None):
-        # our observations are going to be the distance to be moved in
-        # the direction of the goal in the vector form...
-        # to be brief obs =  pos vec of goal relative to agent...
-        # but what about angles? lets ignore them for now...
-        goal_vec, angle = np.split((self.goal - self.agent.pose), [-1])
+        goal_vec = self.goal - self.agent.pose[:-1]
         distance = np.linalg.norm(goal_vec)
         unit_vec = goal_vec / distance if distance != 0 else goal_vec
-        # c_dist = min(distance, self.d_clip)#/self.d_clip
-        c_dist = distance
-        sc = np.hstack([np.cos(self.agent.pose.theta), np.sin(self.agent.pose.theta)])
-        goal = np.hstack([unit_vec, c_dist])
+
+        ##### This has been added to make sure that the inputs are ########
+        ##### similar to the ones that the g2g model was trained for..#####
+        distance = np.min([distance, 1.])
+        ###################################################################
+
+        goal = np.hstack([unit_vec, distance])
         if not self.her:
             return np.hstack([sc, goal])
         if prev_pose is None:
             ag = np.zeros(3)
         else:
             ag = (self.agent.pose - prev_pose)[:-1]
-            if norm(ag) < 1e-6:
+            if norm(ag) < 1e-8:
                 ag += 1e-8
 
             ag = np.hstack([ag/norm(ag), norm(ag)])
-        self.obs = {"observation": sc,
+        obs = np.hstack([Go2Goal.cossin(self.agent.pose[-1])])
+        self.obs = {"observation": obs,
                     "desired_goal": goal,
                     "achieved_goal": ag}
         return self.obs
 
-    def close(self):
-            if self.viewer:
-                self.viewer.close()
-                self.viewer = None
+    def put_seed(self, seed):
+        if seed is not None:
+            np.random.seed(seed)
 
-    def seed(self, seed):
-        np.random.seed(seed)
+    def launch_stage(self, world=None):
+        current_path = os.getcwd()
+        world_file = os.path.join(current_path, "__stage", "simple.world")
+        info.out("USING WORLD FILE: {}".format(world_file))
+        args = ["rosrun", "stage_ros", "stageros", world_file]
+        try:
+            sp.Popen(args)
+        except Exception as e:
+            error.out(e)
 
-    def compute_reward(self, achieved_goal, desired_goal, info):
-        # print(achieved_goal.shape)
-        # print(desired_goal.shape)
-        r = norm(achieved_goal - desired_goal, axis=1)
-        # print(r, r.shape, r.astype('i'))
-        return (r < self.thresh).astype('i')
+    def sample_goal(self):
+        bounds = [(np.array([-7, -7]), np.array([-2, -5])),
+                  (np.array([+3, -5]), np.array([+7, -2])),
+                  (np.array([+2, +4]), np.array([+7, +7])),
+                  (np.array([-7, +0]), np.array([-6, +6]))]
+        bmin, bmax = bounds[np.random.choice(4)]
+        goal = np.random.random(2)*(bmax-bmin) + bmin
+        return goal
+
+    def render(self):
+        pass
 
 
 register(
-    id='Go2Goal-v0',
-    entry_point='go2goal:Go2Goal',
+    id="Go2Goal-v0",
+    entry_point="go2goal:Go2Goal",
 )

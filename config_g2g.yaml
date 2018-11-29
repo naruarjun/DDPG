@@ -36,4 +36,4 @@ eval_rollout:
   render: True
   periodic_ckpt: False
   save_best: True
-  step_sleep: 0.05
+  step_sleep: 0.0

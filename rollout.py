@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import tensorflow as tf
-from util import info
+from util import info, log
 
 
 class RolloutGenerator:
@@ -14,12 +14,16 @@ class RolloutGenerator:
     checkpoint(opt): perform rollout from a saved policy
     """
 
-    def __init__(self, env, agent, config: dict, _eval=False, summarize=False):
+    def __init__(self, env, agent, config, _eval=False, summary_writer=None):
         self.name = "{}_ROLLOUT".format("*EVAL" if _eval else "TRAIN")
         self.env = env
         self.agent = agent
         self.eval = _eval
         self.best_score = 0.
+        self.summary_writer = summary_writer
+        self.summary = tf.Summary()
+        if self.eval:
+            self.eval_counter = 0
         self.__dict__.update(config)
         self.log_str = "| [{}] Episode: {:4} | Reward: {:7.3f} | "
         self.log_str += "Q: {:8.3f} | T: {:3d} |"
@@ -74,10 +78,15 @@ class RolloutGenerator:
                     time.sleep(self.step_sleep)
         self.episode += 1
         self.update_stats(episodic_q, episodic_r, t)
+        if self.summary is not None:
+            self.update_summaries(episodic_r, episodic_q)
+            # self.write_summary()
         if not self.eval:
             self.log(episodic_q, episodic_r, t)
         if self.eval and info["is_success"]:
             self.success += 1
+        if info["is_success"]:
+            log.out("Reached goal.. hooray?")
         self.create_checkpoint()
 
     def create_checkpoint(self):
@@ -90,6 +99,25 @@ class RolloutGenerator:
             self.best_score = self.mean_er
             self.saver.save(self.agent.sess,
                             self.p_ckpt.format("B", self.episode))
+
+    def update_summaries(self, episodic_r, episodic_q):
+        counter = self.episode
+        if self.eval:
+            self.eval_counter += 1
+            counter = self.eval_counter
+        summaries = [tf.Summary.Value(tag="{}/episodic_r".format(self.name),
+                        simple_value=episodic_r),
+                     tf.Summary.Value(tag="{}/episodic_q".format(self.name),
+                        simple_value=episodic_q)]
+        ss = tf.Summary(value=summaries)
+        self.summary_writer.add_summary(ss, int(counter))
+        self.summary_writer.flush()
+
+    def write_summary(self):
+        merged = tf.summary.merge_all()
+        ss = self.agent.sess.run([merged])
+        self.summary_writer.add_summary(ss[0], self.episode)
+        log.out(self.name)
 
     def update_stats(self, eps_q, eps_r, t):
         self.q_total += eps_q
@@ -113,8 +141,3 @@ class RolloutGenerator:
         if done and self.eval:
             self.log(self.mean_eq, self.mean_er, self.t_steps)
         return done
-
-    # def summarize(self):
-    #     if self.summarizer is None:
-    #         return
-    #     summarizer.value.add(tag="{}/")

@@ -64,10 +64,9 @@ class DDPG:
         x, g, ag, u, r, nx, ng, t = self.get_batch()
         # for her transitions
         her_idxs = np.where(np.random.random(self.b_size) < 0.80)[0]
-        # print("{} of {} selected for HER transitions".
-        # format(len(her_idxs), self.b_size))
+        her_idxs = np.where(r[her_idxs] != -20)[0]
         g[her_idxs] = ag[her_idxs]
-        r[her_idxs] = 1
+        r[her_idxs] = 10
         t[her_idxs] = 1
         x = np.hstack([x, g])
         nx = np.hstack([nx, ng])
@@ -75,7 +74,6 @@ class DDPG:
         tq = r + self.gamma*self.critic.predict_target(nx, nu)*(1-t)
         self.critic.train(x, u, tq)
         grad = self.critic.get_action_grads(x, u)
-        # print("Grads:\n", g)
         self.actor.train(x, grad)
         self.update_targets()
 
