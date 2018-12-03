@@ -143,9 +143,11 @@ class Go2Goal(gym.Env):
             self.init_viewer()
         if self.goal_changed:
             self.goal_changed = False
-            self.goal_tf.set_translation(*(self.goal.tolist()[:-1] + self.w_limits//2)*self.scale)
+            self.goal_tf.set_translation(*(self.goal.tolist()[:-1] +
+                                         self.w_limits//2)*self.scale)
         for agent, agent_tf in zip(self.agents, self.agent_tfs):
-            agent_tf.set_translation(*(agent.pose.tolist()[:-1] + self.w_limits//2)*self.scale)
+            agent_tf.set_translation(*(agent.pose.tolist()[:-1] +
+                                     self.w_limits//2)*self.scale)
             agent_tf.set_rotation(agent.pose.theta)
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
