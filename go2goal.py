@@ -10,7 +10,7 @@ from numpy.random import random
 
 from PointEnvironment.Agent import Agent
 from PointEnvironment.Pose import Pose
-from util import error
+from util import error, log
 
 
 class Go2Goal(gym.Env):
@@ -51,14 +51,14 @@ class Go2Goal(gym.Env):
 
         self.observation_space = Box(low=-1, high=1, shape=(5,), dtype="f")
         # World Limits
-        self.w_limits = np.array([20, 20])
+        self.w_limits = np.array([10, 10])
         # Screen Limits
         self.s_limtis = np.array([600, 600])
         self.scale = self.s_limtis/self.w_limits
         assert self.scale.tolist().count(self.scale[0]) == len(self.scale),\
-        error.format("Scale for both axis must be equal...")
+            error.format("Scale for both axis must be equal...")
         self.scale = self.scale[0]
-        self.agent_radius = 0.15 # in meters
+        self.agent_radius = 0.15  # in meters
         self.agents = [Agent(i) for i in range(3)]
         if config is not None:
             self.__dict__.update(config)
@@ -83,11 +83,13 @@ class Go2Goal(gym.Env):
 
     def step(self, action):
         assert self.goal is not None, "Call reset before calling step"
-        prev_pose = Pose(*self.agent.pose.tolist())
+        prev_poses = [Pose(*agent.pose.tolist()) for agent in self.agents]
+        [agent.step(action[i]) for i, agent in enumerate(self.agents)
+            for j in range(self.num_iter)]
         for i in range(self.num_iter):
             self.agent.step(action)
         reward, done = self.get_reward()
-        return self.compute_obs(prev_pose), reward, done,\
+        return self.compute_obs(prev_poses), reward, done,\
             {"dist": self.current_distance, "is_success": done}
 
     def get_reward(self):
@@ -119,14 +121,15 @@ class Go2Goal(gym.Env):
         # AGENT MARKERS
         self.agent_tfs = []
         a_rad_px = self.agent_radius * self.scale
-        vertices = [a_rad_px*Go2Goal.cossin(np.radians(i)) for i in [0, 140, -140]]
+        verx = [a_rad_px*Go2Goal.cossin(np.radians(i)) for i in [0, 140, -140]]
         for i in self.agents:
-            agent = rendering.FilledPolygon([tuple(j) for j in vertex])
+            agent = rendering.FilledPolygon([tuple(j) for j in verx])
             agent.set_color(0.15, 0.235, 0.459)
             agent_tf = rendering.Transform()
-            agent.add_attr(self.visual_agent_trans)
+            agent.add_attr(agent_tf)
             self.agent_tfs.append(agent_tf)
             self.viewer.add_geom(agent)
+        log.out(self.agent_tfs)
         # GOAL VECTORS
         # self.goal_vex = [rendering.Line((0, 0), (1, 1)) for i in self.agents]
         # [i.set_color(1., 0.01, 0.02) for i in self.goal_vex]
@@ -142,30 +145,30 @@ class Go2Goal(gym.Env):
             self.goal_tf.set_translation(self.goal.x*self.scale,
                                          self.goal.y*self.scale)
         for agent, agent_tf in zip(self.agents, self.agent_tfs):
-            agent_tf.set_translation(self.agent.pose.x*self.scale,
-                                     self.agent.pose.y*self.scale)
-            agent_tf.set_rotation(self.agent.pose.theta)
+            agent_tf.set_translation(agent.pose.x*self.scale,
+                                     agent.pose.y*self.scale)
+            agent_tf.set_rotation(agent.pose.theta)
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
-    def compute_obs(self, prev_pose=None):
+    def compute_obs(self, prev_poses=None):
         # our observations are going to be the distance to be moved in
         # the direction of the goal in the vector form...
         # to be brief obs =  pos vec of goal relative to agent...
         # but what about angles? lets ignore them for now...
-        goal_vex = [np.array(self.goal[:-1]) - agent.pose[:-1] 
+        goal_vex = [np.array((self.goal - agent.pose)[:-1])
                     for agent in self.agents]
         distance = [norm(goal_vec) for goal_vec in goal_vex]
         unit_vex = [(goal_vec / dist if distance != 0 else goal_vec)
                     for goal_vec, dist in zip(goal_vex, distance)]
         sc = [Go2Goal.cossin(agent.pose.theta) for agent in self.agents]
-        goal = [np.hstack(i) for i in zip(goal_vex, distance)]
+        goal = [np.hstack(i) for i in zip(unit_vex, distance)]
         if not self.her:
             return np.hstack([sc, goal])
         ag = [np.zeros(3) for i in self.agents]
-        if prev_pose is not None:
+        if prev_poses is not None:
             for idx, agent in enumerate(self.agents):
-                agx = (agent.pose - prev_pose[idx])[:-1]
+                agx = (agent.pose - prev_poses[idx])[:-1]
                 if norm(ag) < 1e-8:
                     ag = 1e-8
 
