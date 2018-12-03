@@ -53,8 +53,8 @@ class Go2Goal(gym.Env):
         # World Limits
         self.w_limits = np.array([10, 10])
         # Screen Limits
-        self.s_limtis = np.array([600, 600])
-        self.scale = self.s_limtis/self.w_limits
+        self.s_limits = np.array([600, 600])
+        self.scale = self.s_limits/self.w_limits
         assert self.scale.tolist().count(self.scale[0]) == len(self.scale),\
             error.format("Scale for both axis must be equal...")
         self.scale = self.scale[0]
@@ -111,7 +111,7 @@ class Go2Goal(gym.Env):
         return Pose(x=x, y=y, t=theta)
 
     def init_viewer(self):
-        self.viewer = rendering.Viewer(*self.s_limtis)
+        self.viewer = rendering.Viewer(*self.s_limits)
         # GOAL MARKER
         circle = rendering.make_circle()
         circle.set_color(0.3, 0.82, 0.215)
@@ -136,17 +136,16 @@ class Go2Goal(gym.Env):
         # [self.viewer.add_geom(i) for i in self.goal_vex]
 
     def render(self, mode='human'):
+        # We also add some offset = self.s_limit//2 to center the origin
         if self.goal is None:
             return None
         if self.viewer is None:
             self.init_viewer()
         if self.goal_changed:
             self.goal_changed = False
-            self.goal_tf.set_translation(self.goal.x*self.scale,
-                                         self.goal.y*self.scale)
+            self.goal_tf.set_translation(*(self.goal.tolist()[:-1] + self.w_limits//2)*self.scale)
         for agent, agent_tf in zip(self.agents, self.agent_tfs):
-            agent_tf.set_translation(agent.pose.x*self.scale,
-                                     agent.pose.y*self.scale)
+            agent_tf.set_translation(*(agent.pose.tolist()[:-1] + self.w_limits//2)*self.scale)
             agent_tf.set_rotation(agent.pose.theta)
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
