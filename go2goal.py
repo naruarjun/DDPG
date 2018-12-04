@@ -112,6 +112,11 @@ class Go2Goal(gym.Env):
 
     def init_viewer(self):
         self.viewer = rendering.Viewer(*self.s_limits)
+        lx = [rendering.Line((0, pt), (self.s_limits[1], pt)) for pt in
+              np.arange(0, self.s_limits[0], self.scale)]
+        ly = [rendering.Line((pt, 0), (pt, self.s_limits[0])) for pt in
+              np.arange(0, self.s_limits[1], self.scale)]
+        [self.viewer.add_geom(i) for i in lx+ly]
         # GOAL MARKER
         circle = rendering.make_circle()
         circle.set_color(0.3, 0.82, 0.215)
@@ -129,7 +134,6 @@ class Go2Goal(gym.Env):
             agent.add_attr(agent_tf)
             self.agent_tfs.append(agent_tf)
             self.viewer.add_geom(agent)
-        log.out(self.agent_tfs)
         # GOAL VECTORS
         # self.goal_vex = [rendering.Line((0, 0), (1, 1)) for i in self.agents]
         # [i.set_color(1., 0.01, 0.02) for i in self.goal_vex]
@@ -157,16 +161,9 @@ class Go2Goal(gym.Env):
         # the direction of the goal in the vector form...
         # to be brief obs =  pos vec of goal relative to agent...
         # but what about angles? lets ignore them for now...
-        goal_vex = [np.array((self.goal - agent.pose)[:-1])
-                    for agent in self.agents]
-        distance = [norm(goal_vec) for goal_vec in goal_vex]
-        unit_vex = [(goal_vec / dist if distance != 0 else goal_vec)
-                    for goal_vec, dist in zip(goal_vex, distance)]
-        sc = [Go2Goal.cossin(agent.pose.theta) for agent in self.agents]
-        goal = [np.hstack(i) for i in zip(unit_vex, distance)]
-        if not self.her:
-            return np.hstack([sc, goal])
-        ag = [np.zeros(3) for i in self.agents]
+        goal_vectors = [agent.pose.getPoseInFrame(self.goal)[0][:-2] for
+                        agent in self.agents]
+        ag = [np.zeros(2) for i in self.agents]
         if prev_poses is not None:
             for idx, agent in enumerate(self.agents):
                 agx = (agent.pose - prev_poses[idx])[:-1]
