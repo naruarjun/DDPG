@@ -33,7 +33,7 @@ class FCNN:
             self.nn = op if self.op_act is None else self.op_act(op)
             self.net_params = tf.get_collection(TVARS, scope=self.scope)
         for i in self.net_params:
-            tf.summary.histogram(i.name, i)
+            tf.summary.histogram(i.name.replace(":", "_"), i)
 
     def __call__(self, sess, inputs):
         return sess.run(self.nn, inputs)
