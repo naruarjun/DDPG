@@ -46,10 +46,9 @@ class RolloutGenerator:
         episodic_r = 0.
         x = self.env.reset()
         while not done and t < self.env.max_episode_steps:
-            a, u, q = self.agent.step(np.hstack([x["observation"],
-                                      x["desired_goal"]]),
-                                      explore=(not self.eval))
-            x2, r, done, info = self.env.step(a)
+            a = self.agent.step(x["observation"], x["desired_goal"],
+                                explore=(not self.eval))
+            x2, r, done, info = self.env.step(self.scale_action(a))
             self.agent.remember([x["observation"], x["desired_goal"],
                                  x["achieved_goal"], u, r, x2["observation"],
                                  x2["desired_goal"], int(done)])
@@ -62,14 +61,12 @@ class RolloutGenerator:
             # Update stats
             t += 1
             episodic_r += float(r)
-            episodic_q += float(q)
+            # episodic_q += float(q)
 
             # Train agent if required
             if not self.eval:
-                assert "train_cycles_per_ts"
-                for i in range(self.train_cycles_per_ts):
-                    self.agent.train()
-            else:
+                [self.agent.train() for i in range(self.train_cycles_per_ts)]
+            else:  # for better visualization
                 if "step_sleep" in self.__dict__:
                     time.sleep(self.step_sleep)
         self.episode += 1
@@ -114,7 +111,5 @@ class RolloutGenerator:
             self.log(self.mean_eq, self.mean_er, self.t_steps)
         return done
 
-    # def summarize(self):
-    #     if self.summarizer is None:
-    #         return
-    #     summarizer.value.add(tag="{}/")
+    def scale_action(self, a):
+        return a
