@@ -40,10 +40,13 @@ class Go2Goal(gym.Env):
         # self.seed = None
         self.thresh = np.array([0.05, 0.05, 0.1])[:-1]
         self.num_iter = 50
-        self.reward_max = 1
+        self.reward_max = 12.
         self.max_episode_steps = 25
         self._max_episode_steps = 25
+        
         self.step_penalty = 1.0  # (self.max_episode_steps)
+        self.form_reward = 2.0
+        self.goal_reward = 10.
 
         self.action_low = np.array([0.0, -np.pi/4])
         self.action_high = np.array([0.3, np.pi/4])
@@ -74,23 +77,28 @@ class Go2Goal(gym.Env):
         self._spec = EnvSpec("Go2Goal-v0")
 
     def reset(self):
-        [agent.reset(self.sample_pose()) for agent in self.agents]
+        [agent.reset(self.sample_pose(limits=np.array([2,2])))
+         for agent in self.agents]
         self.goal = self.sample_pose()
+        self.form = self.get_form_goal()
         self.goal_changed = True
         # print("Agent spawned at: ", self.agent.pose)
         # print("Goalpoint set to: ", self.goal)
         return self.compute_obs()
 
-    def step(self, action):
+    def step(self, actions):
         assert self.goal is not None, "Call reset before calling step"
         prev_poses = [Pose(*agent.pose.tolist()) for agent in self.agents]
-        [agent.step(action[i]) for i, agent in enumerate(self.agents)
-            for j in range(self.num_iter)]
-        for i in range(self.num_iter):
-            self.agent.step(action)
-        reward, done = self.get_reward()
-        return self.compute_obs(prev_poses), reward, done,\
-            {"dist": self.current_distance, "is_success": done}
+        for agent_id, action in actions.items():
+            log.out(self.agents[agent_id])
+            log.out(action)
+            for _ in range(self.num_iter):
+                self.agents[agent_id].step(action)
+        # reward, done = self.get_reward()
+        obs = self.compute_obs(prev_poses)#, reward, done,\
+        reward, done = self._reward(obs["achieved_goal"], obs["desired_goal"])
+        return obs, reward, done, {}
+            # {"dist": self.current_distance, "is_success": done}
 
     def get_reward(self):
         reached = (self.distance_from_goal() < self.thresh).all()
@@ -105,10 +113,20 @@ class Go2Goal(gym.Env):
         self.current_distance = np.abs((self.agent.pose - self.goal))[:-1]
         return self.current_distance
 
-    def sample_pose(self):
-        x, y = random(2)*self.w_limits - self.w_limits/2
+    def sample_pose(self, limits=None):
+        if limits is None:
+            x, y = random(2)*self.w_limits - self.w_limits/2
+        else:
+            x, y = random(2)*limits - limits/2
         theta = (random()*2 - 1)*np.pi
         return Pose(x=x, y=y, t=theta)
+
+    def get_form_goal(self):
+        sides = np.random.random(3)*0.8 + 0.7
+        if np.array([np.sum(sides)- 2*x > 0 for x in sides]).all():
+            sides.sort()
+            return sides
+        return self.get_form_goal()
 
     def init_viewer(self):
         self.viewer = rendering.Viewer(*self.s_limits)
@@ -118,7 +136,7 @@ class Go2Goal(gym.Env):
               np.arange(0, self.s_limits[1], self.scale)]
         [self.viewer.add_geom(i) for i in lx+ly]
         # GOAL MARKER
-        circle = rendering.make_circle()
+        circle = rendering.make_circle(radius=0.15*self.scale)
         circle.set_color(0.3, 0.82, 0.215)
         self.goal_tf = rendering.Transform()
         circle.add_attr(self.goal_tf)
@@ -134,6 +152,12 @@ class Go2Goal(gym.Env):
             agent.add_attr(agent_tf)
             self.agent_tfs.append(agent_tf)
             self.viewer.add_geom(agent)
+        # CENTROID MARKER
+        circle = rendering.make_circle(radius=0.1*self.scale)
+        circle.set_color(0.9, 0.3, 0.23)
+        self.centroid_tf = rendering.Transform()
+        circle.add_attr(self.centroid_tf)
+        self.viewer.add_geom(circle)
         # GOAL VECTORS
         # self.goal_vex = [rendering.Line((0, 0), (1, 1)) for i in self.agents]
         # [i.set_color(1., 0.01, 0.02) for i in self.goal_vex]
@@ -153,6 +177,9 @@ class Go2Goal(gym.Env):
             agent_tf.set_translation(*(agent.pose.tolist()[:-1] +
                                      self.w_limits//2)*self.scale)
             agent_tf.set_rotation(agent.pose.theta)
+        centroid = np.mean([a.pose.tolist()[:-1] for a in self.agents], 0)
+        log.out("centroid: {}".format(centroid))
+        self.centroid_tf.set_translation(*(centroid+self.w_limits//2)*self.scale)
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
@@ -161,19 +188,23 @@ class Go2Goal(gym.Env):
         # the direction of the goal in the vector form...
         # to be brief obs =  pos vec of goal relative to agent...
         # but what about angles? lets ignore them for now...
-        goal_vectors = [agent.pose.getPoseInFrame(self.goal)[0][:-2] for
+        obs = [np.hstack([np.hstack(j.pose.getPoseInFrame(i.pose))
+               for i in self.agents if i.id != j.id]) for j in self.agents]
+        g_vec = [agent.pose.getPoseInFrame(self.goal)[0] for
                         agent in self.agents]
+        dist = [sorted([np.linalg.norm(obs[a][b:c]) for a, b, c in 
+                       [(0, 0, 2), (1, 4, 6), (2, 0, 2)]])]*len(self.agents)
+        centroid = np.mean([a.pose.tolist()[:-1] for a in self.agents], 0)
         ag = [np.zeros(2) for i in self.agents]
+        log.out(prev_poses)
         if prev_poses is not None:
             for idx, agent in enumerate(self.agents):
-                agx = (agent.pose - prev_poses[idx])[:-1]
-                if norm(ag) < 1e-8:
-                    ag = 1e-8
+                ag[idx] = prev_poses[idx].getPoseInFrame(Pose(*centroid))[0]
 
-                ag[idx] = np.hstack([agx/norm(agx), norm(agx)])
-        self.obs = {"observation": sc,
-                    "desired_goal": goal,
-                    "achieved_goal": ag}
+        self.obs = {"observation": np.matrix(obs),
+                    "desired_goal": np.hstack([np.matrix(g_vec),
+                                              [self.form]*len(self.agents)]),
+                    "achieved_goal": np.hstack([np.matrix(ag), dist])}
         return self.obs
 
     def close(self):
@@ -184,12 +215,19 @@ class Go2Goal(gym.Env):
     def seed(self, seed):
         np.random.seed(seed)
 
-    def compute_reward(self, achieved_goal, desired_goal, info):
-        # print(achieved_goal.shape)
-        # print(desired_goal.shape)
-        r = norm(achieved_goal - desired_goal, axis=1)
-        # print(r, r.shape, r.astype('i'))
-        return (r < self.thresh).astype('i')
+    def _reward(self, ag, dg):
+        # REWARD = -1, if formation not formed
+        #        = +2, if formation formed
+        #        = +10, if goal reached while in formation
+        done = False
+        if (np.abs(np.mean(ag[:, 2:] - dg[:, 2:], axis=0)) < 0.15).all():
+            reward = self.form_reward
+        else:
+            return -self.step_penalty, done
+        if (np.abs(np.mean(ag[:, :2] - dg[:, :2], axis=0)) < 0.15).all():
+            reward += self.goal_reward
+            done = True
+        return reward, done
 
 
 register(
