@@ -28,7 +28,7 @@ class Actor:
         self.PI = FCNN(a_input, self.dim_action, self.n_layers,
                        self.n_units, tf.nn.relu, tf.nn.tanh, name="t_pi")
         self.grads = tf.placeholder(f, shape=(None, self.dim_action),
-                                    name="grad") 
+                                    name="grad")
 
     def define_operations(self):
         with tf.name_scope("actor_ops"):
