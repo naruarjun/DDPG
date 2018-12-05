@@ -7,6 +7,7 @@ from actor import Actor
 from noise import Noise
 from critic import Critic
 from memory import Memory
+from util import info
 
 
 class DDPG:
@@ -17,48 +18,48 @@ class DDPG:
         self.createInputs()
         self.actor = Actor(self.sess, self.actor_ips, **self.actor_params)
         self.critic = Critic(self.sess, self.inputs, **self.critic_params)
-
-        # # create actor/critic models
-        # self.actor = Actor(self.sess, self.inputs, **self.actor_params)
-        # self.critic = Critic(self.sess, self.inputs, **self.critic_params)
-        # self.noise_params = {k: np.array(list(map(float, v.split(","))))
-        #                      for k, v in self.noise_params.items()}
-        # self.noise = Noise(**self.noise_params)
-        # self.ou_level = np.zeros(self.dimensions["u"])
-        # self.memory = Memory(self.n_mem_objects,
-        #                      self.memory_size)
+        self.noise_params = {k: np.array(list(map(float, v.split(","))))
+                             for k, v in self.noise_params.items()}
+        self.noise = Noise(**self.noise_params)
+        self.ou_level = np.zeros((self.n_agents, 
+                                  self.actor_params["dim_action"]))
+        self.OU = self.noise.ornstein_uhlenbeck_level
+        self.memory = Memory(self.n_mem_objects, self.memory_size)
 
     def createInputs(self):
         def PH(k, v): return tf.placeholder(f, shape=(None, v), name=k)
-        input_specs = deepcopy(self.inputs)
+        self.input_specs = deepcopy(self.inputs)
         self.inputs = {}
         # Create input placeholders for single inputs
-        for k, v in input_specs.items():
-            if k == "multi_agent":
+        for k, v in self.input_specs.items():
+            if k == "multi":
                 continue
             self.inputs[k] = PH(k, v)
         
         # Create input placeholders for multiagent inputs
         for i in range(self.n_agents):
-            for key, v in input_specs["multi_agent"].items():
+            for key, v in self.input_specs["multi"].items():
                 k = "{}{}".format(key, i)
                 self.inputs[k] = PH(k, v)
         # Seperate inputs for actor
         self.actor_ips = {x: y for x, y in self.inputs.items()
                           if x in ["state0", "f_goal", "t_goal0"]}
 
-
-    def step(self, x, explore=True):
-        x = x.reshape(-1, self.dimensions["x"])
+    def step(self, states, goals, explore=True):
+        # states = np.matrix(states)
+        t_goal = np.matrix(goals[:, :2])
+        f_goal = np.matrix(goals[:, 2:])
+        x = {"state0": states, "t_goal0": t_goal, "f_goal": f_goal}
         if explore:
-            u = self.actor.predict(x)
-            self.ou_level = self.noise.ornstein_uhlenbeck_level(self.ou_level)
-            u = u + self.ou_level
-            q = self.critic.predict(x, u)
+            action = self.actor.predict(x)
+            self.ou_level = np.array([self.OU(self.ou_level[i]) 
+                                      for i in range(self.n_agents)])
+            action += self.ou_level
         else:
-            u = self.actor.predict_target(x)
-            q = self.critic.predict_target(x, u)
-        return [self.scale_u(u[0]), u, q[0]]
+            action = self.actor.predict_target(x)
+        if "scale_action" in self.__dict__.keys():
+            return self.scale_action(action)
+        return action
 
     def remember(self, experience):
         self.memory.add(experience)
@@ -70,20 +71,34 @@ class DDPG:
         x, g, ag, u, r, nx, ng, t = self.get_batch()
         # for her transitions
         her_idxs = np.where(np.random.random(self.b_size) < 0.80)[0]
-        # print("{} of {} selected for HER transitions".
-        # format(len(her_idxs), self.b_size))
         g[her_idxs] = ag[her_idxs]
-        r[her_idxs] = 1
+        r[her_idxs] = 1.0
         t[her_idxs] = 1
-        x = np.hstack([x, g])
-        nx = np.hstack([nx, ng])
-        nu = self.actor.predict_target(nx)
-        tq = r + self.gamma*self.critic.predict_target(nx, nu)*(1-t)
-        self.critic.train(x, u, tq)
-        grad = self.critic.get_action_grads(x, u)
-        # print("Grads:\n", g)
-        self.actor.train(x, grad)
-        self.update_targets()
+
+        ip_c = self.compile_inputs_for_critic(x, u)
+        # ip_c = self.compile_inputs_for_critic(nx, u)
+
+
+        # ip_c = {"state{}".format(i): j for i, j in
+        #         enumerate(np.swapaxes(nx, 0, 1))}
+        # ip_c.update({"t_goal{}".format(i): j for i, j in
+        #              enumerate(np.swapaxes(g[:, :, :2], 0, 1))})
+        # ip_c.["f_goal"] = g[:, 0, :].reshape(-1, 3)
+        # ip_a = {"state0": nx.reshape(-1, nx.shape[-1]),
+        #         "t_goal0": ng.reshape(-1, ng.shape[-1])[:2],
+        #         "f_goal": ng.reshape(-1, ng.shape[-1])[2:]}
+
+        # ip_c.update({"state{}".format(i): j for i, j in
+        #              enumerate(np.swapaxes(nx, 0, 1))})
+        # nu = self.actor.predict_target(ip_a).reshape(u.shape)
+        # ip_c.update({"action{}".format(i): j for i, j in
+        #              enumerate(np.swapaxes(nu, 0, 1))})
+        # tq = r + self.gamma*self.critic.predict_target(ip_c)*(1-t)
+        # self.critic.train(ip_c, tq)
+        # grad = self.critic.get_action_grads(x, u)
+        # # print("Grads:\n", g)
+        # self.actor.train(x, grad)
+        # self.update_targets()
 
     def get_batch(self):
         return self.memory.sample(self.b_size)
