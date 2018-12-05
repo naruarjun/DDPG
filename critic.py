@@ -48,20 +48,20 @@ class Critic:
 
     def predict(self, inputs):
         values = {v: inputs[k] for k, v in self.inputs.items()}
-        return self.session.run(self.q.nn, feed_dict=vals)
+        return self.session.run(self.q.nn, feed_dict=values)
 
-    def predict_target(self, x, u):
-        return self.session.run(self.Q.nn,
-                                feed_dict={self.x: x, self.u: u})
+    def predict_target(self, inputs):
+        values = {v: inputs[k] for k, v in self.inputs.items()}
+        return self.session.run(self.Q.nn, feed_dict=values)
 
-    def train(self, x, u, t):
-        return self.session.run([self.q.nn, self.minimize],
-                                feed_dict={self.x: x, self.u: u,
-                                           self.p: t})
+    def train(self, inputs, target):
+        values = {v: inputs[k] for k, v in self.inputs.items()}
+        values[self.pred_q] = target
+        return self.session.run([self.q.nn, self.minimize], feed_dict=values)
 
-    def get_action_grads(self, x, u):
-        return self.session.run(self.action_grads,
-                                feed_dict={self.x: x, self.u: u})[0]
+    def get_action_grads(self, inputs):
+        values = {v: inputs[k] for k, v in self.inputs.items()}
+        return self.session.run(self.action_grads, feed_dict=values)[0]
 
     def update_target(self):
         self.session.run(self.updt_Q)
