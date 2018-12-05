@@ -43,7 +43,7 @@ class Go2Goal(gym.Env):
         self.reward_max = 12.
         self.max_episode_steps = 25
         self._max_episode_steps = 25
-        
+
         self.step_penalty = 1.0  # (self.max_episode_steps)
         self.form_reward = 0.0
         self.goal_reward = 1.0
@@ -77,7 +77,7 @@ class Go2Goal(gym.Env):
         self._spec = EnvSpec("Go2Goal-v0")
 
     def reset(self):
-        [agent.reset(self.sample_pose(limits=np.array([2,2])))
+        [agent.reset(self.sample_pose(limits=np.array([2, 2])))
          for agent in self.agents]
         self.goal = self.sample_pose()
         self.form = self.get_form_goal()
@@ -94,10 +94,10 @@ class Go2Goal(gym.Env):
             for _ in range(self.num_iter):
                 self.agents[agent_id].step(action)
         # reward, done = self.get_reward()
-        obs = self.compute_obs(prev_poses)#, reward, done,\
+        obs = self.compute_obs(prev_poses)
         reward, done = self._reward(obs["achieved_goal"], obs["desired_goal"])
         return obs, reward, done, {}
-            # {"dist": self.current_distance, "is_success": done}
+        # {"dist": self.current_distance, "is_success": done}
 
     def get_reward(self):
         reached = (self.distance_from_goal() < self.thresh).all()
@@ -122,7 +122,7 @@ class Go2Goal(gym.Env):
 
     def get_form_goal(self):
         sides = np.random.random(3)*0.8 + 0.7
-        if np.array([np.sum(sides)- 2*x > 0 for x in sides]).all():
+        if np.array([np.sum(sides) - 2*x > 0 for x in sides]).all():
             sides.sort()
             return sides
         return self.get_form_goal()
@@ -178,7 +178,8 @@ class Go2Goal(gym.Env):
             agent_tf.set_rotation(agent.pose.theta)
         centroid = np.mean([a.pose.tolist()[:-1] for a in self.agents], 0)
         # log.out("centroid: {}".format(centroid))
-        self.centroid_tf.set_translation(*(centroid+self.w_limits//2)*self.scale)
+        self.centroid_tf.set_translation(*(centroid+self.w_limits//2)
+                                         * self.scale)
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
 
@@ -190,12 +191,11 @@ class Go2Goal(gym.Env):
         obs = [np.hstack([np.hstack(j.pose.getPoseInFrame(i.pose))
                for i in self.agents if i.id != j.id]) for j in self.agents]
         g_vec = [agent.pose.getPoseInFrame(self.goal)[0] for
-                        agent in self.agents]
-        dist = [sorted([np.linalg.norm(obs[a][b:c]) for a, b, c in 
+                 agent in self.agents]
+        dist = [sorted([np.linalg.norm(obs[a][b:c]) for a, b, c in
                        [(0, 0, 2), (1, 4, 6), (2, 0, 2)]])]*len(self.agents)
         centroid = np.mean([a.pose.tolist()[:-1] for a in self.agents], 0)
         ag = [np.zeros(2) for i in self.agents]
-        # log.out(prev_poses)
         if prev_poses is not None:
             for idx, agent in enumerate(self.agents):
                 ag[idx] = prev_poses[idx].getPoseInFrame(Pose(*centroid))[0]
