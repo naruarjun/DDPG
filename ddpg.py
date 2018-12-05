@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
-
+from copy import deepcopy
+from tensorflow import float32 as f
 
 from actor import Actor
 from noise import Noise
@@ -10,43 +11,48 @@ from memory import Memory
 
 class DDPG:
 
-    def __init__(self, sess, scale_u, params):
+    def __init__(self, sess, params):
         self.sess = sess
-        self.scale_u = scale_u
         self.__dict__.update(params)
-        # create placeholders
-        if "inputs" not in params.keys():
-            self.create_input_placeholders()
-        # create actor/critic models
-        self.actor = Actor(self.sess, self.inputs, **self.actor_params)
+        self.createInputs()
+        self.actor = Actor(self.sess, self.actor_ips, **self.actor_params)
         self.critic = Critic(self.sess, self.inputs, **self.critic_params)
-        self.noise_params = {k: np.array(list(map(float, v.split(","))))
-                             for k, v in self.noise_params.items()}
-        self.noise = Noise(**self.noise_params)
-        self.ou_level = np.zeros(self.dimensions["u"])
-        self.memory = Memory(self.n_mem_objects,
-                             self.memory_size)
 
-    def create_input_placeholders(self):
+        # # create actor/critic models
+        # self.actor = Actor(self.sess, self.inputs, **self.actor_params)
+        # self.critic = Critic(self.sess, self.inputs, **self.critic_params)
+        # self.noise_params = {k: np.array(list(map(float, v.split(","))))
+        #                      for k, v in self.noise_params.items()}
+        # self.noise = Noise(**self.noise_params)
+        # self.ou_level = np.zeros(self.dimensions["u"])
+        # self.memory = Memory(self.n_mem_objects,
+        #                      self.memory_size)
+
+    def createInputs(self):
+        def PH(k, v): return tf.placeholder(f, shape=(None, v), name=k)
+        input_specs = deepcopy(self.inputs)
         self.inputs = {}
-        with tf.name_scope("inputs"):
-            for ip_name, dim in self.dimensions.items():
-                self.inputs[ip_name] = tf.placeholder(tf.float32,
-                                                      shape=(None, dim),
-                                                      name=ip_name)
-            self.inputs["g"] = tf.placeholder(tf.float32,
-                                              shape=self.inputs["u"].shape,
-                                              name="a_grad")
-            self.inputs["p"] = tf.placeholder(tf.float32,
-                                              shape=(None, 1),
-                                              name="pred_q")
+        # Create input placeholders for single inputs
+        for k, v in input_specs.items():
+            if k == "multi_agent":
+                continue
+            self.inputs[k] = PH(k, v)
+        
+        # Create input placeholders for multiagent inputs
+        for i in range(self.n_agents):
+            for key, v in input_specs["multi_agent"].items():
+                k = "{}{}".format(key, i)
+                self.inputs[k] = PH(k, v)
+        # Seperate inputs for actor
+        self.actor_ips = {x: y for x, y in self.inputs.items()
+                          if x in ["state0", "f_goal", "t_goal0"]}
+
 
     def step(self, x, explore=True):
         x = x.reshape(-1, self.dimensions["x"])
         if explore:
             u = self.actor.predict(x)
             self.ou_level = self.noise.ornstein_uhlenbeck_level(self.ou_level)
-            # print(self.ou_level, u)
             u = u + self.ou_level
             q = self.critic.predict(x, u)
         else:
