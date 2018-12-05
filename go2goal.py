@@ -45,8 +45,8 @@ class Go2Goal(gym.Env):
         self._max_episode_steps = 25
         
         self.step_penalty = 1.0  # (self.max_episode_steps)
-        self.form_reward = 2.0
-        self.goal_reward = 10.
+        self.form_reward = 0.0
+        self.goal_reward = 1.0
 
         self.action_low = np.array([0.0, -np.pi/4])
         self.action_high = np.array([0.3, np.pi/4])
@@ -88,10 +88,9 @@ class Go2Goal(gym.Env):
 
     def step(self, actions):
         assert self.goal is not None, "Call reset before calling step"
+        log.out(actions)
         prev_poses = [Pose(*agent.pose.tolist()) for agent in self.agents]
         for agent_id, action in actions.items():
-            log.out(self.agents[agent_id])
-            log.out(action)
             for _ in range(self.num_iter):
                 self.agents[agent_id].step(action)
         # reward, done = self.get_reward()
@@ -178,7 +177,7 @@ class Go2Goal(gym.Env):
                                      self.w_limits//2)*self.scale)
             agent_tf.set_rotation(agent.pose.theta)
         centroid = np.mean([a.pose.tolist()[:-1] for a in self.agents], 0)
-        log.out("centroid: {}".format(centroid))
+        # log.out("centroid: {}".format(centroid))
         self.centroid_tf.set_translation(*(centroid+self.w_limits//2)*self.scale)
 
         return self.viewer.render(return_rgb_array=mode == 'rgb_array')
@@ -196,15 +195,15 @@ class Go2Goal(gym.Env):
                        [(0, 0, 2), (1, 4, 6), (2, 0, 2)]])]*len(self.agents)
         centroid = np.mean([a.pose.tolist()[:-1] for a in self.agents], 0)
         ag = [np.zeros(2) for i in self.agents]
-        log.out(prev_poses)
+        # log.out(prev_poses)
         if prev_poses is not None:
             for idx, agent in enumerate(self.agents):
                 ag[idx] = prev_poses[idx].getPoseInFrame(Pose(*centroid))[0]
 
-        self.obs = {"observation": np.matrix(obs),
-                    "desired_goal": np.hstack([np.matrix(g_vec),
+        self.obs = {"observation": np.array(obs),
+                    "desired_goal": np.hstack([np.array(g_vec),
                                               [self.form]*len(self.agents)]),
-                    "achieved_goal": np.hstack([np.matrix(ag), dist])}
+                    "achieved_goal": np.hstack([np.array(ag), dist])}
         return self.obs
 
     def close(self):
@@ -220,13 +219,12 @@ class Go2Goal(gym.Env):
         #        = +2, if formation formed
         #        = +10, if goal reached while in formation
         done = False
+        reward = -self.step_penalty
         if (np.abs(np.mean(ag[:, 2:] - dg[:, 2:], axis=0)) < 0.15).all():
             reward = self.form_reward
-        else:
-            return -self.step_penalty, done
-        if (np.abs(np.mean(ag[:, :2] - dg[:, :2], axis=0)) < 0.15).all():
-            reward += self.goal_reward
-            done = True
+            if (np.abs(np.mean(ag[:, :2] - dg[:, :2], axis=0)) < 0.15).all():
+                reward += self.goal_reward
+                done = True
         return reward, done
 
 
