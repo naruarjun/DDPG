@@ -19,10 +19,10 @@ class Memory:
         if num > len(self.buffer):
             raise ValueError("Memory size less than required batch size")
         samples = np.random.choice(len(self.buffer), num, False)
-        batches = [np.array([self.buffer[i][j] for j in samples]) 
-                    for i in range(self.n_objects)]
+        batches = [np.array([self.buffer[i][j] for j in samples])
+                   for i in range(self.n_objects)]
         return batches
 
     @property
     def size(self):
-        return len(self.buffer)
+        return len(self.buffer[0])
