@@ -8,7 +8,7 @@ from tensorflow import reduce_mean as rmean
 from tensorflow.train import AdamOptimizer as Adam
 
 from FCNN import FCNN
-from util import info
+from util import info, log
 
 
 class Critic:
@@ -38,7 +38,7 @@ class Critic:
             self.minimize = Adam(self.lr, name="q_adam")\
                 .minimize(loss, var_list=self.q.net_params)
             # ACTION GRADIENTS
-            a_list = [x for x, y in self.inputs.items() if "action" in x]
+            a_list = [y for x, y in self.inputs.items() if "action" in x]
             self.action_grads = tf.gradients(self.q.nn, a_list, name="dq_du")
             # UPDATE TARGET OP
             net_param_pairs = zip(self.q.net_params, self.Q.net_params)
@@ -61,7 +61,7 @@ class Critic:
 
     def get_action_grads(self, inputs):
         values = {v: inputs[k] for k, v in self.inputs.items()}
-        return self.session.run(self.action_grads, feed_dict=values)[0]
+        return self.session.run(self.action_grads, feed_dict=values)
 
     def update_target(self):
         self.session.run(self.updt_Q)
