@@ -1,11 +1,13 @@
 ddpg:
   n_agents: 3
   inputs:
-    state: 8
-    t_goal: 2
     f_goal: 3
-    action: 2
+    multi_agent:
+      state: 8
+      t_goal: 2
+      action: 2
   actor_params:
+    dim_action: 2
     n_layers: 3
     n_units : 100
     tau:      0.01
