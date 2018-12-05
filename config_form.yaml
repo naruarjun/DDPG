@@ -2,7 +2,7 @@ ddpg:
   n_agents: 3
   inputs:
     f_goal: 3
-    multi_agent:
+    multi:
       state: 8
       t_goal: 2
       action: 2
@@ -22,3 +22,6 @@ ddpg:
     sigma: 0.5,0.7
     ou_a:  0.6,0.6
     ou_mu: 0.5,0.0
+  n_mem_objects: 8
+  memory_size: 100000
+  b_size: 200
