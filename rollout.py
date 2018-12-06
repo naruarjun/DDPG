@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import tensorflow as tf
-from util import info
+from util import info, warn
 
 
 class RolloutGenerator:
@@ -46,12 +46,13 @@ class RolloutGenerator:
         episodic_r = 0.
         x = self.env.reset()
         while not done and t < self.env.max_episode_steps:
-            a = self.agent.step(x["observation"], x["desired_goal"],
+            warn.out("{}--{}".format(self.name, t))
+            a, u = self.agent.step(x["observation"], x["desired_goal"],
                                 explore=(not self.eval))
-            x2, r, done, info = self.env.step(self.scale_action(a))
+            x2, r, done, remark = self.env.step(a)
             self.agent.remember([x["observation"], x["desired_goal"],
-                                 x["achieved_goal"], u, r, x2["observation"],
-                                 x2["desired_goal"], int(done)])
+                                 x["achieved_goal"], u, [r], x2["observation"],
+                                 x2["desired_goal"], [int(done)]])
             x = x2
 
             # Render if required
@@ -73,7 +74,7 @@ class RolloutGenerator:
         self.update_stats(episodic_q, episodic_r, t)
         if not self.eval:
             self.log(episodic_q, episodic_r, t)
-        if self.eval and info["is_success"]:
+        if self.eval and remark["is_success"]:
             self.success += 1
         self.create_checkpoint()
 

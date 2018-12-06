@@ -9,7 +9,7 @@ from tensorflow.summary import FileWriter
 from ddpg import DDPG
 import go2goal
 from rollout import RolloutGenerator
-
+from util import error
 
 EXAMPLE_USAGE = """
 Train agent using DDPG + HER
@@ -34,10 +34,11 @@ def load_config(filename):
 
 def scale_action_gen(env, u_min, u_max):
     def scale_action(u):
+        error.out(u)
         u = np.clip(u, u_min, u_max)
-        # print("clipped ", u)
         zo = (u - u_min)/(u_max - u_min)
-        return zo * (env.action_high - env.action_low) + env.action_low
+        a = zo * (env.action_high - env.action_low) + env.action_low
+        return {i: j for i, j in enumerate(a)}
     return scale_action
 
 
@@ -64,7 +65,8 @@ def train(config, from_ckpt=None):
     tf_session = tf.Session()
     env = gym.make("Go2Goal-v0")
     scale_action = scale_action_gen(env, np.ones(2)*-1, np.ones(2))
-    ddpg_agent = DDPG(tf_session, scale_action, config)
+    config["ddpg"]["scale_action"] = scale_action
+    ddpg_agent = DDPG(tf_session, config["ddpg"])
     if from_ckpt is not None:
         new_saver = tf.train.Saver()
         new_saver.restore(tf_session, from_ckpt)

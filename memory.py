@@ -1,5 +1,6 @@
 import numpy as np
 from collections import deque
+from util import error
 
 
 class Memory:
@@ -16,9 +17,10 @@ class Memory:
         [self.buffer[i].append(j) for i, j in enumerate(experience)]
 
     def sample(self, num):
-        if num > len(self.buffer):
-            raise ValueError("Memory size less than required batch size")
-        samples = np.random.choice(len(self.buffer), num, False)
+        if num > self.size:
+            err = error.format("Memory size: {}, but requested: {}")
+            raise ValueError(err.format(self.size, num))
+        samples = np.random.choice(self.size, num, False)
         batches = [np.array([self.buffer[i][j] for j in samples])
                    for i in range(self.n_objects)]
         return batches

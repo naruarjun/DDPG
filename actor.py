@@ -1,13 +1,13 @@
 import tensorflow as tf
 
-
+import numpy as np
 from tensorflow import float32 as f
 from tensorflow import multiply as mul
 from tensorflow.train import AdamOptimizer as Adam
 from tensorflow.initializers import truncated_normal as TN
 
 from FCNN import FCNN
-
+from util import error
 
 class Actor:
     def __init__(self, sess, input_t, **params):
@@ -23,10 +23,10 @@ class Actor:
         a_input = tf.concat(a_input, axis=1)
         # MAIN ACTOR NETWORK
         self.pi = FCNN(a_input, self.dim_action, self.n_layers,
-                       self.n_units, tf.nn.relu, tf.nn.tanh, name="pi")
+                       self.n_units, tf.nn.tanh, tf.nn.tanh, name="pi")
         # TARGET ACTOR NETWORK
         self.PI = FCNN(a_input, self.dim_action, self.n_layers,
-                       self.n_units, tf.nn.relu, tf.nn.tanh, name="t_pi")
+                       self.n_units, tf.nn.tanh, tf.nn.tanh, name="t_pi")
         self.grads = tf.placeholder(f, shape=(None, self.dim_action),
                                     name="grad")
 
@@ -34,10 +34,10 @@ class Actor:
         with tf.name_scope("actor_ops"):
             # GRADIENT OF ACTIONS WRT ACTOR PARAMS TIMES NEGATIVE GRADIENT OF
             # VALUE FUNCTION WRT ACTIONS
-            grads = tf.gradients(self.pi.nn, self.pi.net_params, -self.grads)
+            self.gg = tf.gradients(self.pi.nn, self.pi.net_params, -self.grads)
             # APPLY GRADIENTS TO ACTOR NETWORK
             self.optimize = Adam(self.lr, name="pi_adam")\
-                .apply_gradients(zip(grads, self.pi.net_params))
+                .apply_gradients(zip(self.gg, self.pi.net_params))
             # UPDATE TARGET OP
             net_param_pairs = zip(self.pi.net_params, self.PI.net_params)
             with tf.name_scope("update_target_pi"):
@@ -55,7 +55,11 @@ class Actor:
     def train(self, inputs, grads):
         values = {v: inputs[k] for k, v in self.inputs.items()}
         values[self.grads] = grads
-        return self.session.run(self.optimize, feed_dict=values)
+        error.out([np.isnan(i).any() for i in self.session.run(self.gg, feed_dict=values)])
+        error.out([(np.min(i), np.max(i)) for i in self.session.run(self.gg, feed_dict=values)])
+        error.out(self.session.run(self.pi.net_params))
+        self.session.run(self.optimize, feed_dict=values)
+        error.out(self.session.run(self.pi.net_params))
 
     def update_target(self):
         self.session.run(self.updt_PI)

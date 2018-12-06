@@ -1,7 +1,8 @@
 dimensions:
-  x: 5
+  x: 8
   r: 1 
   u: 2
+  goal: 5
 actor_params:
   n_layers: 3
   n_units : 100

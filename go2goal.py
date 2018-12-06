@@ -49,7 +49,7 @@ class Go2Goal(gym.Env):
         self.goal_reward = 1.0
 
         self.action_low = np.array([0.0, -np.pi/4])
-        self.action_high = np.array([0.3, np.pi/4])
+        self.action_high = np.array([0.4, np.pi/4])
         self.action_space = Box(self.action_low, self.action_high, dtype="f")
 
         self.observation_space = Box(low=-1, high=1, shape=(5,), dtype="f")
@@ -88,25 +88,14 @@ class Go2Goal(gym.Env):
 
     def step(self, actions):
         assert self.goal is not None, "Call reset before calling step"
-        log.out(actions)
+        # log.out(actions)
         prev_poses = [Pose(*agent.pose.tolist()) for agent in self.agents]
         for agent_id, action in actions.items():
             for _ in range(self.num_iter):
                 self.agents[agent_id].step(action)
-        # reward, done = self.get_reward()
         obs = self.compute_obs(prev_poses)
         reward, done = self._reward(obs["achieved_goal"], obs["desired_goal"])
-        return obs, reward, done, {}
-        # {"dist": self.current_distance, "is_success": done}
-
-    def get_reward(self):
-        reached = (self.distance_from_goal() < self.thresh).all()
-        if reached:
-            return self.reward_max, True
-        return -self.step_penalty, False
-        # return -self.step_penalty if not reached else self.reward_max
-        # reward = self.reward_max if reached else 0.0
-        # return reward-self.step_penalty, reached
+        return obs, reward, done, {"is_success": done}
 
     def distance_from_goal(self):
         self.current_distance = np.abs((self.agent.pose - self.goal))[:-1]

@@ -2,12 +2,13 @@ import numpy as np
 import tensorflow as tf
 from copy import deepcopy
 from tensorflow import float32 as f
+from tensorflow.summary import FileWriter
 
 from actor import Actor
 from noise import Noise
 from critic import Critic
 from memory import Memory
-from util import info, log, error
+from util import info, log, error, warn
 
 
 class DDPG:
@@ -25,6 +26,9 @@ class DDPG:
                                   self.actor_params["dim_action"]))
         self.OU = self.noise.ornstein_uhlenbeck_level
         self.memory = Memory(self.n_mem_objects, self.memory_size)
+        self.summ_writer = FileWriter("__tensorboard/f", self.sess.graph)
+        self.merged_summary = tf.summary.merge_all()
+        self.t_c = 0
 
     def createInputs(self):
         def PH(k, v): return tf.placeholder(f, shape=(None, v), name=k)
@@ -46,7 +50,7 @@ class DDPG:
                           if x in ["state0", "f_goal", "t_goal0"]}
 
     def step(self, states, goals, explore=True):
-        states = np.matrix(states)
+        states = np.matrix(states)  
         t_goal = np.matrix(goals[:, :2])
         f_goal = np.matrix(goals[:, 2:])
         x = {"state0": states, "t_goal0": t_goal, "f_goal": f_goal}
@@ -58,8 +62,8 @@ class DDPG:
         else:
             action = self.actor.predict_target(x)
         if "scale_action" in self.__dict__.keys():
-            return self.scale_action(action)
-        return action
+            return self.scale_action(action), action
+        return action, action
 
     def remember(self, experience):
         self.memory.add(experience)
@@ -67,7 +71,8 @@ class DDPG:
     def train(self):
         # check if the memory contains enough experiences
         if self.memory.size < 3*self.b_size:
-            error.out("Not enough {} : {}".format(self.memory.size, 3*self.b_size))
+            # error.out("Not enough {} : {}".format(self.memory.size, 
+            # 3*self.b_size))
             return
         x, g, ag, u, r, nx, ng, t = self.get_batch()
         # for her transitions
@@ -79,50 +84,41 @@ class DDPG:
         nu = self.actor.predict_target(ip_a).reshape((self.b_size, -1, 2))
         ip_c = self.compile_inputs_for_critic(nx, ng, nu, self.b_size)
         tq = r + self.gamma*np.multiply(self.critic.predict_target(ip_c), (1-t))
-        log.out(self.critic.predict_target(ip_c))
+        error.out("TARGET Q: \n{}".format(tq))
         ip_a = self.compile_inputs_for_actor(x, g)
         ip_c = self.compile_inputs_for_critic(x, g, u, self.b_size)
         self.critic.train(ip_c, tq)
         grads = self.critic.get_action_grads(ip_c)
         grads = np.mean(np.swapaxes(np.array(grads), 0, 1), axis=1)
-        error.out(np.array(grads))
-        print("-"*100)
-        error.out(np.swapaxes(np.array(grads), 0, 1))
-        print("-"*100)
-        error.out(np.mean(np.swapaxes(np.array(grads), 0, 1), axis=1))
-        print("-"*100)
-        error.out(np.array(grads).reshape((-1, 2)))
-
+        warn.out("grads------------------:\n{}\n\n".format(grads))
+        if np.isnan(grads).any():
+            log.out("REWARDS: \n{}\n".format(r))
+            log.out("TERMINAL: \n{}\n".format(t))
+            log.out("NEXT_U: \n{}\n".format(nu))
+            log.out("NEXT_Q: \n{}\n".format(np.multiply(self.critic.predict_target(ip_c), (1-t))))
+            warn.out("NEXT_X: \n{0}\n".format(nx))
+            warn.out("NEXT_G: \n{0}\n".format(ng))
+            # warn.out(nx)
+            raise ValueError("NAN encountered in grads")
+        log.out("Befor actor.train()"+"*"*80)
+        log.out([np.isnan(i).any() for i in self.sess.run(self.actor.pi.net_params)])
+        log.out([np.isnan(i).any() for i in self.sess.run(self.actor.PI.net_params)])
+        log.out("*"*80)
         self.actor.train(ip_a, grads)
+        log.out("After actor.train()"+"*"*80)
+        log.out([np.isnan(i).any() for i in self.sess.run(self.actor.pi.net_params)])
+        log.out([np.isnan(i).any() for i in self.sess.run(self.actor.PI.net_params)])
+        log.out("*"*80)
         self.update_targets()
-
-        # ip_c = self.compile_inputs_for_critic(nx, u)
-
-
-        # ip_c = {"state{}".format(i): j for i, j in
-        #         enumerate(np.swapaxes(nx, 0, 1))}
-        # ip_c.update({"t_goal{}".format(i): j for i, j in
-        #              enumerate(np.swapaxes(g[:, :, :2], 0, 1))})
-        # ip_c.["f_goal"] = g[:, 0, :].reshape(-1, 3)
-        # ip_a = {"state0": nx.reshape(-1, nx.shape[-1]),
-        #         "t_goal0": ng.reshape(-1, ng.shape[-1])[:2],
-        #         "f_goal": ng.reshape(-1, ng.shape[-1])[2:]}
-
-        # ip_c.update({"state{}".format(i): j for i, j in
-        #              enumerate(np.swapaxes(nx, 0, 1))})
-        # nu = self.actor.predict_target(ip_a).reshape(u.shape)
-        # ip_c.update({"action{}".format(i): j for i, j in
-        #              enumerate(np.swapaxes(nu, 0, 1))})
-        # tq = r + self.gamma*self.critic.predict_target(ip_c)*(1-t)
-        # self.critic.train(ip_c, tq)
-        # grad = self.critic.get_action_grads(x, u)
-        # # print("Grads:\n", g)
-        # self.actor.train(x, grad)
-        # self.update_targets()
-        pass
+        log.out("After actor.update()"+"*"*80)
+        log.out([np.isnan(i).any() for i in self.sess.run(self.actor.pi.net_params)])
+        log.out([np.isnan(i).any() for i in self.sess.run(self.actor.PI.net_params)])
+        log.out("*"*80)
+        self.summ_writer.add_summary(self.sess.run(self.merged_summary), self.t_c)
+        self.t_c += 1
+        log.out("TRAIN SUCCESSFUL")
 
     def compile_inputs_for_critic(self, x, g, u, b_size):
-        info.out(u)
         feed = {"f_goal": g[:, 0, 2:]}
         feed.update({"state{}".format(i): j
                      for i, j in enumerate(np.swapaxes(x, 0, 1))})
@@ -130,7 +126,6 @@ class DDPG:
                      for i, j in enumerate(np.swapaxes(u, 0, 1))})
         feed.update({"t_goal{}".format(i): j[:, :2]
                      for i, j in enumerate(np.swapaxes(g, 0, 1))})
-        info.out(feed)
         return feed
 
     def compile_inputs_for_actor(self, x, g):
