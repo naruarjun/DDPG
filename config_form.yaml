@@ -25,3 +25,4 @@ ddpg:
   n_mem_objects: 8
   memory_size: 100000
   b_size: 200
+  gamma: 0.99
