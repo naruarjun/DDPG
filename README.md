@@ -1,6 +1,12 @@
 # DDPG
 DDPG implementaion with Hindsight Experience Replay (HER) on bare Tensorflow
 
+## What's up with this branch
+ - In this branch we have a central critic which takes in actions and states of the actors
+ - Single actor which drive all the agents
+ - Something weird is be happening --- need to check..
+ - The shapes of actors and critic need to be looked at again..
+
 ## Setting up:
 1. Clone the repository
 ```console
