@@ -29,6 +29,7 @@ mno = 0
 """
 TODO: Try different sampling methods
       Try different cost metrics
+      Try a different state space
 """
 while(True):
 	obs = env.reset()
@@ -56,6 +57,7 @@ while(True):
 			if cost_current<minimum or i==0:
 				minimum = cost_current
 				final_action = cur_action
+			cost_current = 0
 		obs = env.step(cur_action)
 		done = obs[2]
 		env.render()
