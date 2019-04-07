@@ -57,7 +57,6 @@ while(True):
 			if cost_current<minimum or i==0:
 				minimum = cost_current
 				final_action = cur_action
-			cost_current = 0
 		obs = env.step(cur_action)
 		done = obs[2]
 		env.render()
