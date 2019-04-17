@@ -85,9 +85,7 @@ def cost(dist):
 
 mno = 0
 """
-TODO: Try different sampling methods
-	  Try different cost metrics
-	  Try a different state space
+TODO: Convert output of dynamics model to difference in states 
 """
 
 normalize_x = []
@@ -158,13 +156,6 @@ dynamics_model = tf.keras.Sequential([
     tf.keras.layers.Dense(64, activation=tf.nn.tanh),
     tf.keras.layers.Dense(3)
 ])
-
-
-# dynamics_model.add(Dense(128, input_dim=5, activation='relu'))
-# dynamics_model.add(Dense(64, activation='tanh'))
-# dynamics_model.add(Dense(64, activation='tanh'))
-# dynamics_model.add(Dense(3))
-#sgd = optimizers.SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
 dynamics_model.compile(loss='mean_squared_error', optimizer=tf.train.AdamOptimizer())
 X_train,y_env_train = get_data(env)
 dynamics_model.fit(X_train, y_env_train, epochs=20, batch_size=16,shuffle = True)
@@ -191,13 +182,6 @@ policy_model = tf.keras.Sequential([
     tf.keras.layers.Dense(2)
 ])
 
-# policy_model = Sequential()
-# policy_model.add(Dense(256, input_dim=5, activation='relu'))
-# policy_model.add(Dense(256, activation='tanh'))
-# policy_model.add(Dense(256, activation='relu')) 
-# policy_model.add(Dense(2))
-
-
 def dist(inp_state,goal_state):
 	current_distance = tf.slice(tf.abs((tf.square(inp_state) - tf.square(goal_state))),[0,0],[-1,2])**(1/2)
 	return current_distance
@@ -217,51 +201,6 @@ def loss_grad_with_dynamics_model(model1, model2, dense4, input_state, goal_stat
 
 def gradient_update(model, optimizer, input_grad):
 	optimizer.apply_gradients(zip(input_grad, model.trainable_variables))
-
-# while(True):
-# 	obs = env.reset()
-# 	done = False
-# 	length=0
-# 	while(done==False and length<25):
-# 		final_action = 0
-# 		action_sequence = []
-# 		minimum = 100
-# 		cost_current=0
-# 		for i in range(k):
-# 			current_pose = copy.deepcopy(env.agent.pose)
-# 			cost_current=0
-# 			action_seq1 = np.random.uniform(low=0.0, high=0.3, size=(h,1));
-# 			action_seq2 = np.random.uniform(low=-np.pi/2, high=np.pi/2, size=(h,1));
-# 			action_seq = np.hstack([action_seq1,action_seq2])
-# 			cur_action = action_seq[0]
-# 			current_pose_temp = np.array([current_pose.x,current_pose.y,current_pose.theta]) 
-# 			distance_old = MPC_dist_from_goal(env,current_pose)
-# 			distance_new = 0
-# 			#print(current_pose_temp.shape)
-# 			for j in action_seq:
-# 				#print(j.shape)
-# 				current_input = np.hstack([current_pose_temp,j])
-# 				current_output = dynamics_model.predict(current_input.reshape((1,5)))
-# 				current_pose_new = Pose(current_output[0,0],current_output[0,1],current_output[0,2])
-# 				distance_new = MPC_dist_from_goal(env,current_pose_new)
-# 				rew, done_temp = MPC_done(env,distance_new)
-# 				cost_current += (cost(distance_new)-cost(distance_old)) #Using the difference of distance as the cost metric
-# 				distance_old = distance_new
-# 				if(done_temp):
-# 					break
-# 				current_pose_temp = current_output[0]
-# 			if cost_current<minimum or i==0:
-# 				minimum = cost_current
-# 				final_action = cur_action
-# 		print(final_action)
-# 		obs = env.step(cur_action)
-# 		done = obs[2]
-# 		env.render()
-# 		length = length+1
-# 	mno = mno+1
-# 	print("Episode "+str(mno)+":"+str(length))
-
-
 
 optimizer = tf.train.AdamOptimizer()
 while(True):
@@ -295,6 +234,7 @@ while(True):
 			train_goal_state.append(current_pose_goal)
 			train_dense.append(current_output)
 		obs = env.step(cur_act.reshape((2,)))
+		done = obs[2]
 		train_input_state = np.squeeze(train_input_state,axis=1)
 		train_dense = np.squeeze(train_dense,axis=1)
 		#print(np.array(train_input_state).shape)
@@ -303,7 +243,6 @@ while(True):
 		gradient_update(policy_model,optimizer,grads)
 		env.render()
 		length = length+1
-
 	mno = mno+1
 	print("Episode "+str(mno)+":"+str(length))
 	print("##############")
